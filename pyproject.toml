@@ -32,6 +32,9 @@ dependencies = [
     "regionmask>=0.12",
     "xrft>=1.0",
     "xskillscore>=0.0.26",
+    "metpy>=1.6",
+    "pint-xarray>=0.4",
+    "numpy-groupies>=0.11",
 ]
 
 [project.urls]
@@ -81,7 +84,14 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
-ignore = ["E402", "E721", "E731", "E741"]
+ignore = [
+    "E402", "E721", "E731", "E741",
+    # Physics/math docstrings legitimately use Greek letters,
+    # en-dashes, minus signs, and similar Unicode. Suppress the
+    # ambiguous-character warnings that would force us to ASCII-ify
+    # every equation.
+    "RUF002", "RUF003",
+]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
@@ -89,6 +99,16 @@ lines-after-imports = 2
 
 [tool.ty.environment]
 python-version = "3.12"
+
+[tool.ty.rules]
+# xarray's public API is typed with tight Literal[...] unions (e.g.
+# method=Literal["linear", "nearest", ...]) that don't compose with the
+# string parameters we forward from our wrappers. The runtime behaviour
+# is correct; silence the overload/argument noise from these false
+# positives so ty can still surface genuine issues elsewhere.
+invalid-argument-type = "warn"
+no-matching-overload = "warn"
+unresolved-attribute = "warn"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
