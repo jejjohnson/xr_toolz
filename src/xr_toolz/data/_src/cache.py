@@ -55,7 +55,11 @@ def _json_default(obj: Any) -> Any:
         return str(obj)
     if hasattr(obj, "isoformat"):
         return obj.isoformat()
-    if isinstance(obj, (set, frozenset, tuple)):
+    if isinstance(obj, (set, frozenset)):
+        # Sets iterate in hash-randomized order across interpreter runs;
+        # sort so the cache key is stable run-to-run.
+        return sorted(obj, key=str)
+    if isinstance(obj, tuple):
         return list(obj)
     return str(obj)
 

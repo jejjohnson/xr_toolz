@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,14 @@ class Variable:
     aliases: Mapping[str, str] = field(default_factory=dict, hash=False)
     valid_range: tuple[float, float] | None = None
     dtype: str | None = None
+
+    def __post_init__(self) -> None:
+        # Wrap any Mapping input in a read-only view so callers can't
+        # mutate ``var.aliases`` after construction (would otherwise
+        # silently change equality/hashing semantics).
+        if not isinstance(self.aliases, MappingProxyType):
+            frozen = MappingProxyType(dict(self.aliases))
+            object.__setattr__(self, "aliases", frozen)
 
     def for_source(self, source: str) -> str:
         """Return the identifier this variable uses in ``source``.

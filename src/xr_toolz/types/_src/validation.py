@@ -143,8 +143,11 @@ def validate_variable(
     if check_range and var.valid_range is not None:
         lo, hi = var.valid_range
         finite_vals = da.where(np.isfinite(da))
-        mn = float(finite_vals.min().values) if finite_vals.count() > 0 else None
-        mx = float(finite_vals.max().values) if finite_vals.count() > 0 else None
+        # Scalarize the count so the `if` doesn't try to bool-check a
+        # DataArray (unambiguous on 0-d in practice, but brittle).
+        n_finite = int(finite_vals.count().item())
+        mn = float(finite_vals.min().values) if n_finite > 0 else None
+        mx = float(finite_vals.max().values) if n_finite > 0 else None
         if mn is not None and (mn < lo or (mx is not None and mx > hi)):
             report.add(
                 Issue(
@@ -213,7 +216,9 @@ def apply_cf_attrs(
     replace them with the canonical values from the registry.
     """
     var = resolve(variable)
-    out = da.copy()
+    # Shallow copy: we only mutate ``attrs`` below, so there's no reason
+    # to duplicate the underlying array buffer.
+    out = da.copy(deep=False)
     for k, v in var.cf_attrs().items():
         if overwrite or k not in out.attrs:
             out.attrs[k] = v

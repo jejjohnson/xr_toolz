@@ -122,7 +122,9 @@ class CDSSource(DataSource):
 
         CDS has no native lazy access path, so this always materialises
         a local file (under the request cache) before handing back an
-        ``xr.Dataset``.
+        ``xr.Dataset``. Both the cache file suffix and the xarray engine
+        follow :attr:`format`, so reconfiguring to ``"grib"`` remains
+        consistent end-to-end.
         """
         from xr_toolz.data._src.cache import cache_path
 
@@ -140,7 +142,8 @@ class CDSSource(DataSource):
             "levels": levels.levels if levels else None,
             "extras": extras,
         }
-        path = cache_path(self.source_id, dataset_id, request, suffix=".nc")
+        suffix = _suffix_for_format(self.format)
+        path = cache_path(self.source_id, dataset_id, request, suffix=suffix)
         if not path.exists():
             self.download(
                 dataset_id,
@@ -152,7 +155,8 @@ class CDSSource(DataSource):
                 levels=levels,
                 **extras,
             )
-        return xr.open_dataset(path)
+        engine = _engine_for_format(self.format)
+        return xr.open_dataset(path, engine=engine) if engine else xr.open_dataset(path)
 
     # ---- payload construction --------------------------------------------
 
@@ -178,3 +182,38 @@ class CDSSource(DataSource):
             form["pressure_level"] = levels.as_cds_form()
         form.update(extras)
         return form
+
+
+# ---- format <-> filesystem / xarray glue ------------------------------------
+
+
+_FORMAT_SUFFIX: dict[str, str] = {
+    "netcdf": ".nc",
+    "netcdf4": ".nc",
+    "nc": ".nc",
+    "grib": ".grib",
+    "grib2": ".grib",
+}
+
+_FORMAT_ENGINE: dict[str, str | None] = {
+    "netcdf": None,  # xarray picks the best netcdf engine
+    "netcdf4": None,
+    "nc": None,
+    "grib": "cfgrib",
+    "grib2": "cfgrib",
+}
+
+
+def _suffix_for_format(fmt: str) -> str:
+    """File suffix to use when caching a CDS download of format ``fmt``."""
+    try:
+        return _FORMAT_SUFFIX[fmt.lower()]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unsupported CDS format {fmt!r}; known: {sorted(_FORMAT_SUFFIX)}"
+        ) from exc
+
+
+def _engine_for_format(fmt: str) -> str | None:
+    """xarray engine to use when opening a cached file of format ``fmt``."""
+    return _FORMAT_ENGINE.get(fmt.lower())

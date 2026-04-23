@@ -93,7 +93,20 @@ class BBox:
         return [self.lat_max, self.lon_min, self.lat_min, self.lon_max]
 
     def as_xarray_sel(self, lon: str = "lon", lat: str = "lat") -> dict[str, slice]:
-        """``ds.sel(**bbox.as_xarray_sel())`` selector."""
+        """``ds.sel(**bbox.as_xarray_sel())`` selector.
+
+        Raises:
+            ValueError: if the box crosses the antimeridian — a single
+                ``slice(lon_min, lon_max)`` would select zero points in
+                that case. Split the box at ±180° and select the halves
+                separately, or call :meth:`to_360` first.
+        """
+        if self.crosses_antimeridian:
+            raise ValueError(
+                "BBox crosses the antimeridian; a single slice cannot "
+                "represent the wrap. Split the box at ±180° and sel() "
+                "each half, or call .to_360() first."
+            )
         return {
             lon: slice(self.lon_min, self.lon_max),
             lat: slice(self.lat_min, self.lat_max),

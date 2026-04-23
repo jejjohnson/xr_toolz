@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from xr_toolz.data._src.base import DatasetInfo
 from xr_toolz.data._src.cds.catalog import CDS_DATASETS
 from xr_toolz.data._src.cmems.catalog import CMEMS_DATASETS
 
@@ -133,7 +134,7 @@ def all_entries() -> dict[str, CatalogEntry]:
     return dict(CATALOG)
 
 
-def describe(name: str) -> Any:
+def describe(name: str) -> DatasetInfo:
     """Look up a :class:`DatasetInfo` by short name."""
     entry = CATALOG[name]
     if entry.source == "cmems":
