@@ -1,8 +1,8 @@
-site_name: mypackage
-site_description: My short description for my project.
+site_name: xr_toolz
+site_description: Composable operator library for geoprocessing Earth System Data Cubes.
 site_author: J. Emmanuel Johnson
-repo_url: https://github.com/jejjohnson/pypackage_template
-repo_name: jejjohnson/pypackage_template
+repo_url: https://github.com/jejjohnson/xr_toolz
+repo_name: jejjohnson/xr_toolz
 
 theme:
   name: material
@@ -42,8 +42,23 @@ plugins:
 
 nav:
   - Home: index.md
-  - Examples:
-      - Demo: notebooks/example_demo.ipynb
+  - Design:
+      - Overview: design/README.md
+      - Vision: design/vision.md
+      - Architecture: design/architecture.md
+      - Boundaries: design/boundaries.md
+      - Decisions: design/decisions.md
+      - API:
+          - Overview: design/api/README.md
+          - Primitives (L0): design/api/primitives.md
+          - Components (L1): design/api/components.md
+          - Models (L2): design/api/models.md
+      - Examples:
+          - Overview: design/examples/README.md
+          - Primitives: design/examples/primitives.md
+          - Components: design/examples/components.md
+          - Models: design/examples/models.md
+          - Integration: design/examples/integration.md
   - API Reference: api/reference.md
   - Contributing: contributing.md
   - Changelog: CHANGELOG.md
