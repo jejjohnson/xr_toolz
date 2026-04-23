@@ -110,16 +110,25 @@ def streamfunction(
 
 def geostrophic_velocities(
     ds: xr.Dataset,
-    variable: str = "psi",
+    variable: str = "ssh",
 ) -> xr.Dataset:
-    """Geostrophic ``u`` and ``v`` from a stream-function / SSH field.
+    """Geostrophic ``u`` and ``v`` from a height field (SSH).
 
-    MetPy's ``geostrophic_wind`` computes ``u = -∂ψ/∂y``,
-    ``v = ∂ψ/∂x``.
+    Delegates to :func:`metpy.calc.geostrophic_wind`, which expects a
+    **height** input (units of length) and applies the ``g / f`` scaling
+    internally::
+
+        u = -(g / f) ∂h/∂y
+        v =  (g / f) ∂h/∂x
+
+    Do **not** pass a stream-function field here — applying
+    ``geostrophic_wind`` to ``ψ = (g/f) η`` would double the scaling and
+    give unit-inconsistent velocities. :func:`streamfunction` is
+    provided as a separate diagnostic.
 
     Args:
         ds: Dataset containing ``variable``.
-        variable: Name of the stream-function variable.
+        variable: Name of the SSH (height) variable.
 
     Returns:
         Dataset with ``u`` and ``v`` variables in m/s.
@@ -285,5 +294,7 @@ def coriolis_normalized(
         if f0 is None
         else Quantity(f0, "1/s")
     )
-    qds[variable] = qds[variable].metpy.quantify() / f
+    # qds[variable] is already quantified via ds.metpy.quantify();
+    # don't double-wrap.
+    qds[variable] = qds[variable] / f
     return qds.metpy.dequantify()

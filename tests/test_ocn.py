@@ -74,6 +74,20 @@ def test_coriolis_parameter_sign_changes_across_equator():
     assert float(values[2]) > 0.0
 
 
+def test_coriolis_parameter_numerical_value_locks_in_radian_input():
+    """Guard against unit-convention regressions.
+
+    ``metpy.calc.coriolis_parameter`` expects the latitude input in
+    radians (or a pint-Quantity with angle units). Our API converts
+    degrees with ``np.deg2rad`` before calling metpy. At 45° latitude
+    the Coriolis parameter is ``2 * Ω * sin(45°) ≈ 1.031e-4 s⁻¹``.
+    """
+    expected = 2.0 * 7.2921159e-5 * np.sin(np.pi / 4.0)  # ~1.0313e-4
+    f = coriolis_parameter(xr.DataArray(np.array([45.0]), dims="lat"))
+    values = f.metpy.dequantify().values if hasattr(f, "metpy") else np.asarray(f)
+    assert float(values[0]) == pytest.approx(expected, rel=1e-4)
+
+
 def test_streamfunction_produces_psi(ds_ssh_grid):
     out = streamfunction(ds_ssh_grid)
     assert "psi" in out.data_vars
@@ -82,9 +96,19 @@ def test_streamfunction_produces_psi(ds_ssh_grid):
 
 
 def test_geostrophic_velocities_produces_u_and_v(ds_ssh_grid):
-    psi_ds = streamfunction(ds_ssh_grid)
-    uv = geostrophic_velocities(psi_ds)
+    # geostrophic_velocities takes SSH directly (metpy.geostrophic_wind
+    # applies the g/f scaling internally). Passing the stream function
+    # would double-apply the scaling.
+    uv = geostrophic_velocities(ds_ssh_grid, variable="ssh")
     assert set(uv.data_vars) == {"u", "v"}
+
+
+def test_geostrophic_velocities_magnitude_bounded_by_gravity_scaling(ds_ssh_grid):
+    """Sanity check: with SSH of O(0.1 m) over O(1000 km) scales at
+    mid-latitudes, geostrophic speeds are O(0.01–0.1 m/s)."""
+    uv = geostrophic_velocities(ds_ssh_grid, variable="ssh")
+    speed = np.sqrt(uv["u"] ** 2 + uv["v"] ** 2)
+    assert float(speed.max()) < 10.0  # m/s — much smaller than any pathology
 
 
 def test_kinetic_energy_is_non_negative(ds_uv_grid):
@@ -173,14 +197,16 @@ def test_streamfunction_operator(ds_ssh_grid):
 
 
 def test_geostrophic_velocities_operator(ds_ssh_grid):
-    psi = Streamfunction()(ds_ssh_grid)
-    uv = GeostrophicVelocities()(psi)
+    uv = GeostrophicVelocities(variable="ssh")(ds_ssh_grid)
     assert set(uv.data_vars) == {"u", "v"}
 
 
-def test_ocn_pipeline_streamfunction_then_velocities(ds_ssh_grid):
-    pipe = Streamfunction() | GeostrophicVelocities()
-    uv = pipe(ds_ssh_grid)
+def test_streamfunction_is_diagnostic_only(ds_ssh_grid):
+    """Streamfunction is a separate diagnostic — not a pipeline step
+    feeding geostrophic_velocities (the latter takes SSH directly)."""
+    psi = Streamfunction()(ds_ssh_grid)
+    assert "psi" in psi.data_vars
+    uv = GeostrophicVelocities(variable="ssh")(ds_ssh_grid)
     assert set(uv.data_vars) == {"u", "v"}
 
 

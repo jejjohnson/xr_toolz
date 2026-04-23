@@ -205,3 +205,52 @@ def test_graph_describe_includes_inputs_and_outputs():
     text = graph.describe()
     assert "Inputs: ['x']" in text
     assert "Outputs: ['y']" in text
+
+
+# --- Graph as Operator -------------------------------------------------------
+
+
+def test_graph_is_an_operator_subclass():
+    x = Input("x")
+    y = AddConst(1)(x)
+    graph = Graph(inputs={"x": x}, outputs={"y": y})
+    assert isinstance(graph, Operator)
+
+
+def test_graph_nests_inside_another_graph():
+    # Build the inner graph: single-in / single-out.
+    ix = Input("ix")
+    iy = AddConst(5)(ix)
+    inner = Graph(inputs={"ix": ix}, outputs={"iy": iy})
+
+    # Compose it symbolically into an outer graph.
+    ox = Input("ox")
+    via_inner = inner(ox)  # Node, not eager — because ox is an Input
+    assert isinstance(via_inner, Node)
+    final = AddConst(100)(via_inner)
+    outer = Graph(inputs={"ox": ox}, outputs={"final": final})
+
+    result = outer(ox=1)
+    assert result == {"final": 106}
+
+
+def test_graph_composes_with_pipe_operator():
+    x = Input("x")
+    y = AddConst(1)(x)
+    graph = Graph(inputs={"x": x}, outputs={"y": y})
+    chained = graph | AddConst(10)
+    assert isinstance(chained, Sequential)
+    assert chained(0) == 11
+
+
+def test_graph_get_config_is_json_serializable():
+    import json
+
+    x = Input("x")
+    y = AddConst(5)(x)
+    graph = Graph(inputs={"x": x}, outputs={"y": y})
+    config = graph.get_config()
+    # Must round-trip through JSON (rich PyTree state is excluded).
+    json.dumps(config)
+    assert config["inputs"] == {"x": 0}
+    assert set(config["outputs"]) == {"y"}

@@ -96,7 +96,7 @@ class Streamfunction(Operator):
 
 
 class GeostrophicVelocities(Operator):
-    def __init__(self, variable: str = "psi"):
+    def __init__(self, variable: str = "ssh"):
         self.variable = variable
 
     def _apply(self, ds):

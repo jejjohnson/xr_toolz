@@ -9,11 +9,9 @@ order when the graph is called with concrete data.
 from __future__ import annotations
 
 from collections import deque
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-
-if TYPE_CHECKING:
-    from xr_toolz.core.operator import Operator
+from xr_toolz.core.operator import Operator
 
 
 class Node:
@@ -51,14 +49,23 @@ class Input(Node):
         super().__init__(operator=None, parents=(), name=name)
 
 
-class Graph:
+class Graph(Operator):
     """A computation DAG compiled from symbolic :class:`Node` connections.
 
-    ``Graph`` is not itself an :class:`~xr_toolz.core.operator.Operator`
-    in v0.1 — nesting graphs inside graphs is deferred. Graphs do compose
-    inside a :class:`~xr_toolz.core.sequential.Sequential` as long as
-    they are single-input / single-output, because Sequential invokes
-    each step positionally.
+    ``Graph`` is itself an :class:`~xr_toolz.core.operator.Operator`, so
+    graphs nest: a single-input / single-output graph can be a step
+    inside a :class:`~xr_toolz.core.sequential.Sequential`, and any
+    graph can be a node inside a larger graph.
+
+    Calling conventions:
+
+    - ``graph(**kwargs)``: bind each :class:`Input` by its declared
+      name and return a dict keyed by output name.
+    - ``graph(ds)``: positional shortcut for single-input /
+      single-output graphs; returns the raw output value instead of a
+      dict.
+    - ``graph(some_node)``: symbolic mode — returns a new ``Node`` so
+      the graph can be composed into another graph being built.
     """
 
     def __init__(
@@ -71,12 +78,47 @@ class Graph:
         self._execution_order = _topological_sort(self.inputs, self.outputs)
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        # Symbolic mode: if any positional argument is a Node, build a
+        # composite node that defers execution to this graph.
+        if any(isinstance(a, Node) for a in args):
+            return Node(operator=self, parents=args)
+        return self._apply(*args, **kwargs)
+
+    def _apply(self, *args: Any, **kwargs: Any) -> Any:
         bindings = self._bind(args, kwargs)
         results = self._execute(bindings)
         if args and not kwargs and len(self.outputs) == 1:
             (only_output,) = self.outputs.values()
             return results[id(only_output)]
         return {name: results[id(node)] for name, node in self.outputs.items()}
+
+    def get_config(self) -> dict[str, Any]:
+        """Serialize the graph topology.
+
+        Output nodes are flattened into a list of ``{class, config,
+        parents}`` records using each node's index in execution order
+        for cross-references. Raw data state (anything the operators
+        close over) is *not* captured here.
+        """
+        idx = {id(node): i for i, node in enumerate(self._execution_order)}
+        steps = []
+        for i, node in enumerate(self._execution_order):
+            if node.operator is None:
+                steps.append({"index": i, "input": node.name})
+                continue
+            steps.append(
+                {
+                    "index": i,
+                    "class": node.operator.__class__.__name__,
+                    "config": node.operator.get_config(),
+                    "parents": [idx[id(p)] for p in node.parents],
+                }
+            )
+        return {
+            "inputs": {name: idx[id(node)] for name, node in self.inputs.items()},
+            "outputs": {name: idx[id(node)] for name, node in self.outputs.items()},
+            "steps": steps,
+        }
 
     def _bind(
         self,

@@ -225,13 +225,34 @@ def find_intercept_1D(
 ) -> float:
     """Invert a 1-D monotone-ish curve at ``y = level`` and return ``x``.
 
-    Uses :class:`scipy.interpolate.interp1d` on ``(y, x)``. Silently
-    extrapolates when ``level`` falls outside the range of ``y``.
+    Uses :class:`scipy.interpolate.interp1d` on ``(y, x)``. Duplicate
+    ``y`` values (common for plateaued PSD scores) are collapsed to
+    their first occurrence in the sorted order before interpolating,
+    because ``interp1d`` requires a strictly monotone x-axis.
+    Extrapolates silently when ``level`` falls outside the range of the
+    deduplicated ``y``.
     """
-    order = np.argsort(y)
+    y_arr = np.asarray(y, dtype=float)
+    x_arr = np.asarray(x, dtype=float)
+    order = np.argsort(y_arr)
+    y_sorted = y_arr[order]
+    x_sorted = x_arr[order]
+
+    # Collapse runs of duplicate y to the first-seen x so interp1d has
+    # a strictly increasing x-axis. `np.unique` returns the first index
+    # of each unique value; we sort those indices to preserve order.
+    _, first_idx = np.unique(y_sorted, return_index=True)
+    first_idx.sort()
+    y_unique = y_sorted[first_idx]
+    x_unique = x_sorted[first_idx]
+
+    if y_unique.size < 2:
+        # Can't interpolate a single point; return it unconditionally.
+        return float(x_unique.item()) if x_unique.size else float("nan")
+
     f = interp1d(
-        np.asarray(y)[order],
-        np.asarray(x)[order],
+        y_unique,
+        x_unique,
         fill_value=kwargs.pop("fill_value", "extrapolate"),
         kind=kind,
         **kwargs,
@@ -243,6 +264,6 @@ def find_intercept_1D(
             f"level={level} outside range of y — returning edge value.",
             stacklevel=2,
         )
-        y_min, y_max = float(np.min(y)), float(np.max(y))
+        y_min, y_max = float(y_unique.min()), float(y_unique.max())
         edge = y_min if level < y_min else y_max
         return float(np.asarray(f(edge)).item())
