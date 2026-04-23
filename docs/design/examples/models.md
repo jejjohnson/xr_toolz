@@ -3,6 +3,15 @@ status: draft
 version: 0.1.0
 ---
 
+!!! note "Imports in this page are from the original `geo_toolz` layout"
+    These design docs were adapted from the `geo_toolz` design study.
+    Code snippets use the original feature-based import paths
+    (`geo_toolz.<module>`). In `xr_toolz`, the domain-agnostic
+    operations live under `xr_toolz.geo.<module>`; physics-specific
+    operations live under `xr_toolz.ocn` / `xr_toolz.atm` /
+    `xr_toolz.rs`. See `xr_toolz/__init__.py` and
+    `xr_toolz/geo/__init__.py` for the current export surface.
+
 # Layer 2 — Model Examples
 
 Graph API, inference, and model comparison. *(P4: bring your own model, P2: progressive disclosure)*

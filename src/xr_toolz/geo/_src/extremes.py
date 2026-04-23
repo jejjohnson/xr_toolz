@@ -19,7 +19,7 @@ def block_maxima(
     block_size: int = 365,
     time: str = "time",
     boundary: str = "trim",
-    side: str = "center",
+    side: str = "left",
 ) -> xr.DataArray:
     """Coarsen along ``time`` and take the maximum per block.
 
@@ -28,8 +28,7 @@ def block_maxima(
         block_size: Number of time steps per block.
         time: Name of the time dimension.
         boundary: Passed to ``.coarsen`` (``"trim"``, ``"pad"``).
-        side: Passed to ``.coarsen`` (``"left"``, ``"right"``,
-            ``"center"``).
+        side: Passed to ``.coarsen`` (``"left"`` or ``"right"``).
 
     Returns:
         DataArray of block maxima.
@@ -42,7 +41,7 @@ def block_minima(
     block_size: int = 365,
     time: str = "time",
     boundary: str = "trim",
-    side: str = "center",
+    side: str = "left",
 ) -> xr.DataArray:
     """Coarsen along ``time`` and take the minimum per block."""
     return da.coarsen({time: block_size}, boundary=boundary, side=side).min()
@@ -94,7 +93,7 @@ def pp_counts(
     block_size: int = 5,
     time: str = "time",
     boundary: str = "trim",
-    side: str = "center",
+    side: str = "left",
 ) -> xr.DataArray:
     """Count exceedances of a high quantile within each time block.
 
@@ -127,7 +126,7 @@ def pp_stats(
     statistic: Callable[[np.ndarray], float] = np.mean,
     time: str = "time",
     boundary: str = "trim",
-    side: str = "center",
+    side: str = "left",
 ) -> xr.DataArray:
     """Summarize exceedances within each time block.
 
@@ -168,15 +167,19 @@ def _pp_apply(
     side: str,
     reducer: Callable[[np.ndarray, float], float],
 ) -> xr.DataArray:
-    threshold = float(pot_threshold(da, quantile=quantile, time=time).values.item())
+    # For gridded inputs, `pot_threshold` returns a DataArray over the
+    # non-time dims (e.g. lat/lon). Keep it as a DataArray and let
+    # xarray broadcast it against `blocks` via apply_ufunc instead of
+    # scalarizing with `.item()`, which would fail on size > 1.
+    threshold = pot_threshold(da, quantile=quantile, time=time)
     blocks = da.coarsen({time: block_size}, boundary=boundary, side=side).construct(
         {time: (time, "_block")}
     )
-    counts = xr.apply_ufunc(
-        lambda vals: reducer(vals, threshold),
+    return xr.apply_ufunc(
+        reducer,
         blocks,
-        input_core_dims=[["_block"]],
+        threshold,
+        input_core_dims=[["_block"], []],
         output_core_dims=[[]],
         vectorize=True,
     )
-    return counts

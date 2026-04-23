@@ -111,7 +111,6 @@ def fillnan_rbf(
     lon_vals = da[lon].values
     lat_vals = da[lat].values
     lon_grid, lat_grid = np.meshgrid(lon_vals, lat_vals, indexing="xy")
-    targets = np.column_stack([lon_grid.ravel(), lat_grid.ravel()])
 
     def _fill_slice(arr: np.ndarray) -> np.ndarray:
         finite = np.isfinite(arr)
@@ -120,7 +119,14 @@ def fillnan_rbf(
         samples = np.column_stack([lon_grid[finite].ravel(), lat_grid[finite].ravel()])
         values = arr[finite].ravel()
         rbf = RBFInterpolator(samples, values, kernel=kernel, neighbors=neighbors)
-        return rbf(targets).reshape(arr.shape)
+        # Only patch missing positions; leave observed values untouched.
+        missing = ~finite
+        missing_points = np.column_stack(
+            [lon_grid[missing].ravel(), lat_grid[missing].ravel()]
+        )
+        out = arr.copy()
+        out[missing] = rbf(missing_points)
+        return out
 
     return xr.apply_ufunc(
         _fill_slice,

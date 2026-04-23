@@ -147,6 +147,26 @@ def test_fillnan_spatial_fills_interior_nans():
     assert np.isfinite(filled.values).all()
 
 
+def test_fillnan_rbf_preserves_finite_values():
+    """Regression: the RBF filler must only patch NaNs, not overwrite
+    valid observations."""
+    from xr_toolz.geo import fillnan_rbf
+
+    lat = np.linspace(0.0, 1.0, 6)
+    lon = np.linspace(0.0, 1.0, 6)
+    vals = np.add.outer(lat, lon).astype(float)
+    original = vals.copy()
+    # Drop a single interior cell; the rest stays finite.
+    vals[2, 3] = np.nan
+    da = xr.DataArray(vals, dims=("lat", "lon"), coords={"lat": lat, "lon": lon})
+    filled = fillnan_rbf(da)
+    # Every originally-finite cell must be bit-for-bit unchanged.
+    preserved = ~np.isnan(vals)
+    np.testing.assert_array_equal(filled.values[preserved], original[preserved])
+    # And the masked-out cell is now finite.
+    assert np.isfinite(filled.isel(lat=2, lon=3).values)
+
+
 def test_fillnan_temporal_uses_xarray_native():
     time = pd.date_range("2020-01-01", periods=10, freq="1D")
     data = np.arange(10.0)
@@ -220,6 +240,26 @@ def test_pp_stats_mean_finite(ds_grid_daily):
     da = ds_grid_daily["ssh"].isel(lat=4, lon=6)
     stats = pp_stats(da, quantile=0.9, block_size=30, statistic=np.mean)
     # Some blocks will have no exceedance -> NaN. But at least one should be finite.
+    assert np.any(np.isfinite(stats.values))
+
+
+def test_pp_counts_supports_gridded_input(ds_grid_daily):
+    """Regression: the threshold must be broadcast over non-time dims,
+    not scalarized with ``.item()`` (which fails on gridded data)."""
+    counts = pp_counts(ds_grid_daily["ssh"], quantile=0.9, block_size=30)
+    # Output retains lat/lon as outer dims and coarsens time.
+    assert set(counts.dims) >= {"lat", "lon"}
+    assert counts.sizes["time"] == ds_grid_daily.sizes["time"] // 30
+    assert (counts.values >= 0).all()
+
+
+def test_pp_stats_supports_gridded_input(ds_grid_daily):
+    stats = pp_stats(
+        ds_grid_daily["ssh"], quantile=0.9, block_size=30, statistic=np.mean
+    )
+    assert set(stats.dims) >= {"lat", "lon"}
+    assert stats.sizes["time"] == ds_grid_daily.sizes["time"] // 30
+    # At least one grid cell has exceedances across all blocks.
     assert np.any(np.isfinite(stats.values))
 
 
