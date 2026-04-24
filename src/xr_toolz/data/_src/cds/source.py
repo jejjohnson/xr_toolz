@@ -13,6 +13,7 @@ import xarray as xr
 
 from xr_toolz.data._src.base import DatasetInfo, DataSource
 from xr_toolz.data._src.cds.catalog import CDS_DATASETS
+from xr_toolz.data._src.cds.profiles import resolve_profile
 from xr_toolz.data._src.credentials import CDSCredentials, load_cds
 from xr_toolz.types import (
     BBox,
@@ -30,9 +31,13 @@ class CDSSource(DataSource):
         credentials: Explicit :class:`CDSCredentials`. When ``None``,
             credentials are resolved from env vars / ``~/.cdsapirc``.
         client: Optional pre-built ``cdsapi.Client`` (or test double).
-        format: CDS output format, default ``"netcdf"``.
-        product_type: Default ``product_type`` form entry when one
-            isn't provided per-call.
+        format: CDS output format. When ``None`` (default) the family
+            profile picks — ``"netcdf"`` for reanalyses, ``"zip"`` for
+            in-situ. Override with ``"grib"`` / ``"netcdf"`` / ``"zip"``
+            to force a format for every request from this source.
+        product_type: Default ``product_type`` form entry when the
+            dataset's profile admits it (reanalysis datasets; ignored
+            for in-situ).
     """
 
     source_id = "cds"
@@ -41,8 +46,8 @@ class CDSSource(DataSource):
         self,
         credentials: CDSCredentials | None = None,
         client: Any | None = None,
-        format: str = "netcdf",
-        product_type: str = "reanalysis",
+        format: str | None = None,
+        product_type: str | None = "reanalysis",
     ) -> None:
         self.credentials = credentials or load_cds()
         self._client = client
@@ -98,6 +103,7 @@ class CDSSource(DataSource):
         output = Path(output)
         output.parent.mkdir(parents=True, exist_ok=True)
         form = self._build_form(
+            dataset_id=dataset_id,
             variables=variables,
             bbox=bbox,
             time=time,
@@ -142,7 +148,11 @@ class CDSSource(DataSource):
             "levels": levels.levels if levels else None,
             "extras": extras,
         }
-        suffix = _suffix_for_format(self.format)
+        # Same format-resolution order as ``_build_form``.
+        resolved_format = (
+            extras.get("format") or self.format or resolve_profile(dataset_id).format
+        )
+        suffix = _suffix_for_format(resolved_format)
         path = cache_path(self.source_id, dataset_id, request, suffix=suffix)
         if not path.exists():
             self.download(
@@ -155,30 +165,70 @@ class CDSSource(DataSource):
                 levels=levels,
                 **extras,
             )
-        engine = _engine_for_format(self.format)
+        if resolved_format.lower() == "zip":
+            raise ValueError(
+                f"CDS dataset {dataset_id!r} returns a zip bundle, not an "
+                "xarray-readable file. Use CDSInsituArchive or download() "
+                "directly and unpack the archive yourself."
+            )
+        engine = _engine_for_format(resolved_format)
         return xr.open_dataset(path, engine=engine) if engine else xr.open_dataset(path)
 
     # ---- payload construction --------------------------------------------
 
     def _build_form(
         self,
+        *,
+        dataset_id: str,
         variables: list[str | Variable] | None,
         bbox: BBox | None,
         time: TimeRange | None,
         levels: PressureLevels | None,
         extras: dict[str, Any],
     ) -> dict[str, Any]:
-        form: dict[str, Any] = {
-            "format": self.format,
-            "product_type": self.product_type,
-        }
+        """Shape the ``cdsapi`` form for ``dataset_id`` per its profile.
+
+        Priority for ``format`` and ``product_type`` when profile admits them:
+        caller-supplied ``extras`` > source-level default > profile default.
+        """
+        profile = resolve_profile(dataset_id)
+        # Work on a copy — tests assert the outer extras dict isn't mutated.
+        extras = dict(extras)
+        form: dict[str, Any] = {}
+
+        # format priority: caller-supplied extras > source-level override >
+        # profile default. ``self.format`` defaults to ``None`` precisely so
+        # the source default is distinguishable from an explicit override.
+        if "format" in extras:
+            form["format"] = extras.pop("format")
+        elif self.format is not None:
+            form["format"] = self.format
+        else:
+            form["format"] = profile.format
+
+        if profile.includes_product_type:
+            pt = extras.pop("product_type", self.product_type)
+            if pt is not None:
+                form["product_type"] = pt
+        elif "product_type" in extras:
+            form["product_type"] = extras.pop("product_type")
+
+        if profile.required_extras:
+            missing = [k for k in profile.required_extras if k not in extras]
+            if missing:
+                raise ValueError(
+                    f"CDS dataset {dataset_id!r} (profile={profile.family!r}) "
+                    f"requires form key(s) {missing!r}; pass them as keyword "
+                    "arguments to download()/open()."
+                )
+
         if variables:
             form["variable"] = self._encode_variables(variables)
-        if bbox is not None:
+        if bbox is not None and profile.uses_area:
             form["area"] = bbox.as_cds_area()
         if time is not None:
             form.update(time.as_cds_form())
-        if levels is not None:
+        if levels is not None and profile.uses_pressure_level:
             form["pressure_level"] = levels.as_cds_form()
         form.update(extras)
         return form
@@ -193,6 +243,10 @@ _FORMAT_SUFFIX: dict[str, str] = {
     "nc": ".nc",
     "grib": ".grib",
     "grib2": ".grib",
+    # In-situ archives download as a zip bundle of CSVs — ``open()``
+    # returns the raw file path; specialised consumers (e.g.
+    # ``CDSInsituArchive``) unpack it.
+    "zip": ".zip",
 }
 
 _FORMAT_ENGINE: dict[str, str | None] = {
@@ -201,6 +255,8 @@ _FORMAT_ENGINE: dict[str, str | None] = {
     "nc": None,
     "grib": "cfgrib",
     "grib2": "cfgrib",
+    # No xarray engine for raw zip bundles.
+    "zip": None,
 }
 
 
