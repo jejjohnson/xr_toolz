@@ -234,6 +234,36 @@ def test_archive_coverage_reports_gap_fraction(tmp_path: Path):
     assert row.gap_fraction == 0.5
 
 
+def test_archive_sync_same_day_reresync_is_noop(tmp_path: Path):
+    """Re-syncing on the same day must not raise — auto-resume sets
+    ``start = last + 1d``, which for current-day data overshoots
+    ``end = now``. Should short-circuit rather than propagate a
+    ``TimeRange.parse`` error.
+    """
+    source = MagicMock(spec=AemetSource)
+    source.list_stations.return_value = _one_station_collection()
+    # Seed with today's row
+    today = pd.Timestamp.now("UTC").normalize().tz_localize(None)
+    seeded = _make_monthly_ds(["s1"], [today.strftime("%Y-%m-%d")], [[10.0]])
+    source.get_daily.return_value = seeded
+    archive = AemetArchive(root=tmp_path, source=source)
+    archive.sync_stations()
+    archive.sync(
+        "aemet_daily",
+        since=today.strftime("%Y-%m-%d"),
+        until=today.strftime("%Y-%m-%d"),
+    )
+
+    # Without ``since``, auto-resume computes ``last+1d > now`` →
+    # should be a no-op, not an error.
+    out = archive.sync("aemet_daily")
+    # The returned slice is an empty dataset; the on-disk archive is
+    # unchanged.
+    assert len(out.data_vars) == 0
+    gdf = archive.load("aemet_daily")
+    assert len(gdf) == 1  # still the original row
+
+
 def test_archive_sync_rejects_unknown_preset(tmp_path: Path):
     archive = AemetArchive(
         root=tmp_path,

@@ -166,6 +166,13 @@ class AemetArchive:
         station_ids = self._station_ids(stations)
         start = self._resolve_start(preset, since)
         end = self._resolve_end(until)
+        # Auto-resume sets ``start = last_stored + 1 day``; when the
+        # archive already covers ``end`` (routine same-day re-run) that
+        # makes ``start > end`` which ``TimeRange.parse`` correctly
+        # rejects. Short-circuit to a no-op fetch so idempotent
+        # re-syncs don't raise.
+        if pd.Timestamp(start, tz="UTC") > pd.Timestamp(end, tz="UTC"):
+            return xr.Dataset()
         tr = TimeRange.parse(start, end)
         fresh = _FETCH_TABLE[preset](self.source, station_ids, tr)
         self._append(preset, fresh)

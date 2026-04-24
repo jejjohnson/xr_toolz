@@ -1076,9 +1076,13 @@ def _normals_to_dataset(
             if not 1 <= mes <= 12:
                 continue
             for field_name in fields:
-                fields[field_name][i, mes - 1] = (
-                    parse_spanish_float(row.get(field_name)) or np.nan
-                )
+                # ``parse_spanish_float`` returns ``None`` for missing
+                # sentinels and an explicit ``float`` otherwise — zero
+                # included. The previous ``or np.nan`` silently wiped
+                # legitimate zeros (e.g. zero-precipitation months),
+                # so check for ``None`` explicitly.
+                parsed = parse_spanish_float(row.get(field_name))
+                fields[field_name][i, mes - 1] = np.nan if parsed is None else parsed
     return xr.Dataset(
         {name: (("station", "month"), arr) for name, arr in fields.items()},
         coords={

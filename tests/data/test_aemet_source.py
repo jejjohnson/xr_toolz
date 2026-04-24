@@ -285,6 +285,42 @@ def test_unknown_dataset_raises(source_and_fake):
 # ---- subset by variables ------------------------------------------------
 
 
+def test_normals_preserves_zero_values():
+    """``_normals_to_dataset`` must keep legitimate 0.0 values.
+
+    The previous ``parse_spanish_float(...) or np.nan`` idiom treated
+    zeros as falsy and turned them into NaN — silently erasing zero
+    precipitation / sunshine months in the climate normals output.
+    """
+    import numpy as np
+
+    from xr_toolz.data._src.aemet.source import _normals_to_dataset
+
+    rows_per: dict[str, list[dict[str, Any]]] = {
+        "s1": [
+            # January with a zero precipitation month — must survive as 0.
+            {"mes": "1", "tm_mes": "0", "p_mes": "0", "inso": "0"},
+            # February with a real positive value to prove we didn't
+            # accidentally zero everything.
+            {"mes": "2", "tm_mes": "5.5", "p_mes": "12.3", "inso": "4.2"},
+        ]
+    }
+    ds = _normals_to_dataset(rows_per, ("s1",))
+    tmean = ds["tm_mes"].sel(station="s1").values
+    precip = ds["p_mes"].sel(station="s1").values
+    sun = ds["inso"].sel(station="s1").values
+    # Jan (index 0) must be 0.0, not NaN.
+    assert tmean[0] == 0.0
+    assert precip[0] == 0.0
+    assert sun[0] == 0.0
+    # Feb (index 1) keeps its positive values.
+    assert tmean[1] == 5.5
+    assert precip[1] == 12.3
+    # Mar (index 2) and onwards are missing → NaN.
+    assert np.isnan(tmean[2])
+    assert np.isnan(precip[2])
+
+
 def test_chunk_days_range_includes_single_day():
     """Single-day windows must emit one chunk, not zero."""
     from datetime import UTC, datetime
