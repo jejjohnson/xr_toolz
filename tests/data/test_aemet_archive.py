@@ -264,6 +264,20 @@ def test_archive_sync_same_day_reresync_is_noop(tmp_path: Path):
     assert len(gdf) == 1  # still the original row
 
 
+def test_archive_sync_raises_on_explicit_inverted_window(tmp_path: Path):
+    """A caller-provided ``since > until`` is likely a typo → should raise.
+
+    The no-op short-circuit only applies to *auto-resumed* starts
+    (``since=None``); explicit inverted windows must surface the error
+    rather than silently skipping the call.
+    """
+    archive = _make_archive(
+        tmp_path, _make_monthly_ds(["s1"], ["2024-01-01"], [[10.0]])
+    )
+    with pytest.raises(ValueError, match=r"start .* must be <= end"):
+        archive.sync("aemet_daily", since="2025-01-01", until="2024-12-31")
+
+
 def test_archive_sync_rejects_unknown_preset(tmp_path: Path):
     archive = AemetArchive(
         root=tmp_path,

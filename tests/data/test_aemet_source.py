@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from xr_toolz.data import AemetAuthError, AEMETCredentials, AemetSource
@@ -285,6 +286,48 @@ def test_unknown_dataset_raises(source_and_fake):
 
 
 # ---- subset by variables ------------------------------------------------
+
+
+def test_get_monthly_trims_to_requested_window():
+    """Monthly output must not leak months outside the requested range.
+
+    AEMET's endpoint returns whole years, but callers asking for
+    ``TimeRange.parse("2024-06-01", "2024-09-30")`` expect Jun-Sep
+    only. Without trimming, incremental archive syncs would rewrite
+    entire years on every run.
+    """
+
+    # Build a monthly row helper
+    def _row(year: int, month: int, tm: str = "10.0") -> dict[str, str]:
+        return {"fecha": f"{year}-{month}", "indicativo": "3195", "tm_mes": tm}
+
+    # Build 12 months of 2024 as the AEMET payload
+    payload = [_row(2024, m) for m in range(1, 13)]
+
+    # Fake client: any monthly envelope → one data URL with the payload
+    env_body = {"estado": 200, "descripcion": "x", "datos": "https://fake/d"}
+    fake = FakeClient(routes={})
+    src = AemetSource(
+        credentials=AEMETCredentials(api_key="t"),
+        client=fake,
+        max_retries=0,
+        max_workers=1,
+        min_interval_s=0.0,
+    )
+
+    # Override the fake to match any monthly-data URL
+    class PathMatcher(FakeClient):
+        def get(self, url, headers=None, timeout=None):
+            self.calls.append((url, headers))
+            if "/valores/climatologicos/mensualesanuales/" in url:
+                return _Resp(status_code=200, body=env_body)
+            return _Resp(status_code=200, body=payload)
+
+    src._client = PathMatcher(routes={})
+    tr = TimeRange.parse("2024-06-01", "2024-09-30")
+    ds = src.get_monthly(["3195"], time=tr)
+    months = pd.to_datetime(ds["time"].values).month.tolist()
+    assert months == [6, 7, 8, 9], f"expected Jun-Sep only, got months={months}"
 
 
 def test_trip_rate_limit_blocks_all_workers():

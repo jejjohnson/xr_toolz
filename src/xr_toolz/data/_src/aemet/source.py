@@ -507,9 +507,18 @@ class AemetSource(DataSource):
                 else:
                     frames[sid] = frame
 
-        start = pd.Timestamp(f"{year_start}-01-01", tz=UTC)
-        end = pd.Timestamp(f"{year_end}-12-31", tz=UTC)
-        time_index = pd.date_range(start, end, freq="MS", tz=UTC)
+        # Fetch chunks cover whole years (AEMET endpoint granularity),
+        # but return only the months the caller actually asked for.
+        # Without this trim, ``TimeRange.parse("2024-06", "2024-09")``
+        # would still return Jan-Dec 2024 and incremental archive
+        # syncs would repeatedly rewrite entire years.
+        req_start = time.start.tz_convert(UTC) if time.start.tz else time.start
+        req_end = time.end.tz_convert(UTC) if time.end.tz else time.end
+        month_start = pd.Timestamp(
+            year=req_start.year, month=req_start.month, day=1, tz=UTC
+        )
+        month_end = pd.Timestamp(year=req_end.year, month=req_end.month, day=1, tz=UTC)
+        time_index = pd.date_range(month_start, month_end, freq="MS", tz=UTC)
 
         ds = _frames_to_stations_dataset(
             frames,

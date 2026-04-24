@@ -166,19 +166,27 @@ class AemetArchive:
         station_ids = self._station_ids(stations)
         start = self._resolve_start(preset, since)
         end = self._resolve_end(until)
-        # Auto-resume sets ``start = last_stored + 1 day``; when the
-        # archive already covers ``end`` (routine same-day re-run) that
-        # makes ``start > end`` which ``TimeRange.parse`` correctly
-        # rejects. Short-circuit to a no-op fetch so idempotent
-        # re-syncs don't raise — *except* for hourly, where the AEMET
-        # endpoint is a rolling-24h window that ignores the TimeRange
-        # entirely. Hourly should always re-fetch so new observations
-        # published since the last run land in the archive.
-        if preset not in _TIME_INSENSITIVE_PRESETS and (
-            pd.Timestamp(start, tz="UTC") > pd.Timestamp(end, tz="UTC")
-        ):
+
+        # Three cases for inverted windows (``start > end``):
+        #
+        # 1. Hourly preset — always fetch (endpoint is rolling 24h,
+        #    ignores TimeRange entirely; stale data would otherwise
+        #    accumulate until the next calendar day).
+        # 2. Non-hourly + auto-resumed start (``since is None``) —
+        #    ``_resolve_start`` set ``start = last + 1 day`` which
+        #    overshoots ``end=now`` on routine same-day re-runs.
+        #    Correct behaviour is a silent no-op.
+        # 3. Non-hourly + caller-specified ``since`` that inverts —
+        #    almost certainly a typo. Let ``TimeRange.parse`` raise
+        #    so the user sees the error.
+        inverted = pd.Timestamp(start, tz="UTC") > pd.Timestamp(end, tz="UTC")
+        is_hourly = preset in _TIME_INSENSITIVE_PRESETS
+        # Auto-resumed (since=None) + inverted + non-hourly → no-op.
+        # Caller-specified inversion on a non-hourly preset → fall
+        # through and let TimeRange.parse raise a clear error.
+        if inverted and not is_hourly and since is None:
             return xr.Dataset()
-        tr = TimeRange.parse(start, end) if start <= end else None
+        tr = None if (inverted and is_hourly) else TimeRange.parse(start, end)
         fresh = _FETCH_TABLE[preset](self.source, station_ids, tr)
         self._append(preset, fresh)
         return fresh
