@@ -146,6 +146,16 @@ class AemetSource(DataSource):
         # outbound HTTP call, shared across all worker threads.
         self._pace_lock = threading.Lock()
         self._pace_last = 0.0
+        # Global 429 backoff — when any worker hits a rate limit, all
+        # workers (including that one on its retry) wait until this
+        # deadline. Without this shared pause, other workers keep the
+        # bucket topped up while the 429'd worker backs off, so the
+        # minute window never actually clears.
+        self._rate_limited_until = 0.0
+        # Scale factor on the 429 global-pause schedule. Production
+        # runs want full minute-scale pauses to let AEMET's minute
+        # bucket drain; tests set this to 0 to avoid actually sleeping.
+        self.rate_limit_pause_scale = 1.0
 
     # ---- client handling --------------------------------------------------
 
@@ -163,21 +173,40 @@ class AemetSource(DataSource):
         return self._client
 
     def _rate_limit(self) -> None:
-        """Block until ``min_interval_s`` has elapsed since the last call.
+        """Block until it's safe to make another outbound call.
 
-        Shared across the worker pool via ``_pace_lock`` so
-        ``max_workers>1`` still respects the global rate. No-op when
-        ``min_interval_s`` is ``0``.
+        Enforces two gates, both shared across worker threads:
+
+        1. ``min_interval_s`` between consecutive calls (per-request
+           pacing). Acts as a token bucket: one request every
+           ``min_interval_s`` seconds.
+        2. ``_rate_limited_until`` — a global pause set whenever any
+           worker observes a 429. While it's in the future, every
+           worker blocks here, which actually lets AEMET's minute
+           window drain instead of keeping it topped up from the
+           other workers.
         """
-        if self.min_interval_s <= 0:
-            return
         with self._pace_lock:
             now = time.monotonic()
-            wait = self._pace_last + self.min_interval_s - now
-            if wait > 0:
-                time.sleep(wait)
+            # Gate 2: global 429 pause takes precedence.
+            wait_rl = self._rate_limited_until - now
+            if wait_rl > 0:
+                time.sleep(wait_rl)
                 now = time.monotonic()
+            # Gate 1: per-request pacing.
+            if self.min_interval_s > 0:
+                wait_pace = self._pace_last + self.min_interval_s - now
+                if wait_pace > 0:
+                    time.sleep(wait_pace)
+                    now = time.monotonic()
             self._pace_last = now
+
+    def _trip_rate_limit(self, seconds: float) -> None:
+        """Register a global pause of ``seconds`` from now, shared across workers."""
+        with self._pace_lock:
+            deadline = time.monotonic() + seconds
+            if deadline > self._rate_limited_until:
+                self._rate_limited_until = deadline
 
     def _require_key(self) -> str:
         if self.credentials is None:
@@ -697,9 +726,18 @@ class AemetSource(DataSource):
             if status == 401:
                 raise AemetAuthError("AEMET rejected API key (401)")
             if status == 429:
+                # Trip a shared pause so *every* worker blocks and the
+                # minute window drains instead of being kept hot by
+                # concurrent callers. Grow the pause with each attempt.
+                self._trip_rate_limit(
+                    _rate_limit_pause(attempt) * self.rate_limit_pause_scale
+                )
                 if attempt == self.max_retries:
-                    raise AemetRateLimitError("AEMET rate limit, retries exhausted")
-                time.sleep(_backoff_seconds(attempt))
+                    remaining = _parse_remaining(resp.headers)
+                    raise AemetRateLimitError(
+                        f"AEMET rate limit, retries exhausted "
+                        f"(remaining={remaining}, body={resp.text[:200]!r})"
+                    )
                 continue
             if status >= 500:
                 if attempt == self.max_retries:
@@ -748,8 +786,17 @@ class AemetSource(DataSource):
                     continue
                 raise
             status = resp.status_code
-            if status == 429 and attempt < self.max_retries:
-                time.sleep(_backoff_seconds(attempt))
+            if status == 429:
+                # Data-hop 429s also trip the shared pause so other
+                # workers don't keep the bucket hot.
+                self._trip_rate_limit(
+                    _rate_limit_pause(attempt) * self.rate_limit_pause_scale
+                )
+                if attempt == self.max_retries:
+                    raise AemetRateLimitError(
+                        f"AEMET data-hop rate limit, retries exhausted "
+                        f"(body={resp.text[:200]!r})"
+                    )
                 continue
             if status >= 500 and attempt < self.max_retries:
                 # AEMET's Tomcat front-end returns occasional 5xx on
@@ -808,6 +855,17 @@ def _backoff_seconds(attempt: int) -> float:
     return min(2.0**attempt, 30.0)
 
 
+def _rate_limit_pause(attempt: int) -> float:
+    """Global pause duration on 429, growing with each retry.
+
+    AEMET's per-minute rate bucket drains on its own, but only if we
+    actually stop hitting it. The first pause is already a full minute
+    so the sliding-minute window fully clears; later attempts extend
+    up to five minutes in case the window is wider than advertised.
+    """
+    return min(60.0 * (attempt + 1), 300.0)
+
+
 def _is_transient_transport_error(exc: BaseException) -> bool:
     """Whether ``exc`` is a network-layer error we should retry.
 
@@ -857,7 +915,9 @@ def _time_to_numpy(index: pd.DatetimeIndex) -> np.ndarray:
     return index.to_numpy(dtype="datetime64[ns]")
 
 
-def _parse_remaining(headers: Mapping[str, str]) -> int | None:
+def _parse_remaining(headers: Mapping[str, str] | None) -> int | None:
+    if headers is None:
+        return None
     raw = headers.get(RATE_LIMIT_HEADER) or headers.get(RATE_LIMIT_HEADER.lower())
     if raw is None:
         return None

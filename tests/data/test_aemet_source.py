@@ -106,16 +106,18 @@ def test_401_raises_auth_error(source_and_fake):
 # ---- rate limit ----------------------------------------------------------
 
 
-def test_429_retries_then_raises(source_and_fake):
+def test_429_retries_then_raises(source_and_fake, monkeypatch):
     src, fake = source_and_fake
     path = "/valores/climatologicos/inventarioestaciones/todasestaciones"
     fake.routes = {
         path: [_Resp(status_code=429), _Resp(status_code=429), _Resp(status_code=429)]
     }
-    # Zero backoff for the test so it doesn't sleep.
+    # Disable the minute-scale global 429 pause for speed, and stub
+    # ``time.sleep`` so the per-attempt backoff doesn't burn wall time.
+    src.max_retries = 2
+    src.rate_limit_pause_scale = 0.0
+    monkeypatch.setattr("xr_toolz.data._src.aemet.source.time.sleep", lambda _s: None)
     with pytest.raises(AemetRateLimitError):
-        # Monkeypatch sleep via zero-retry config.
-        src.max_retries = 2
         src.list_stations()
 
 
@@ -283,6 +285,27 @@ def test_unknown_dataset_raises(source_and_fake):
 
 
 # ---- subset by variables ------------------------------------------------
+
+
+def test_trip_rate_limit_blocks_all_workers():
+    """A 429 should install a global pause that ``_rate_limit`` honours.
+
+    Without this, concurrent workers keep AEMET's minute bucket hot
+    while the 429'd worker is backing off, and no one makes progress.
+    """
+    import time
+
+    fake = FakeClient(routes={})
+    src = AemetSource(
+        credentials=AEMETCredentials(api_key="t"),
+        client=fake,
+        min_interval_s=0.0,
+    )
+    src._trip_rate_limit(0.3)
+    t0 = time.monotonic()
+    src._rate_limit()
+    elapsed = time.monotonic() - t0
+    assert elapsed >= 0.25, f"expected ≥0.25s pause, got {elapsed:.3f}s"
 
 
 def test_normals_preserves_zero_values():

@@ -58,17 +58,21 @@ def setup_logging(name: str) -> Path:
 def build_archive(
     subdir: str,
     *,
-    min_interval_s: float = 0.5,
-    max_workers: int = 2,
+    min_interval_s: float = 1.0,
+    max_workers: int = 1,
     max_retries: int = 6,
     timeout_s: float = 30.0,
 ) -> AemetArchive:
     """Build a paced :class:`AemetArchive` pointed at ``SCRATCH_ROOT/subdir``.
 
-    Defaults tuned for long-running scrapes: 120 req/min global pacing
-    (~20% headroom under AEMET's ~150/min cap), two workers, six
-    retries on transient failures. The archive is idempotent so
-    re-running after Ctrl-C or kill is safe.
+    Defaults tuned for long-running scrapes that survive AEMET's
+    rate-limit window: **60 req/min** (``min_interval_s=1.0``) with a
+    **single worker**. The two-worker / 120 req/min setting we
+    originally shipped tripped 429s because the minute bucket never
+    actually drained — while one worker was backing off, the other
+    kept the bucket hot. ``AemetSource`` now also globally pauses all
+    workers on any 429 (see ``_trip_rate_limit``) but the safer
+    default is still single-worker at 1 req/s.
     """
     root = SCRATCH_ROOT / subdir
     source = AemetSource(
