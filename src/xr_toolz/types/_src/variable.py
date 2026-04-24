@@ -547,7 +547,7 @@ SURFACE_PRESSURE_HPA = Variable(
     standard_name="surface_air_pressure",
     long_name="Surface air pressure at station level",
     units="hPa",
-    aliases={"aemet": "pres", "cds": "air_pressure_at_surface"},
+    aliases={"aemet": "pres", "cds": "air_pressure"},
     valid_range=(500.0, 1085.0),
 )
 
@@ -583,7 +583,7 @@ WIND_SPEED = Variable(
     standard_name="wind_speed",
     long_name="Mean wind speed",
     units="m s-1",
-    aliases={"aemet": "vv", "cds": "wind_speed_at_10m"},
+    aliases={"aemet": "vv", "cds": "wind_speed"},
     valid_range=(0.0, 120.0),
 )
 
@@ -601,7 +601,7 @@ WIND_FROM_DIRECTION = Variable(
     standard_name="wind_from_direction",
     long_name="Wind direction (meteorological)",
     units="degree",
-    aliases={"aemet": "dv", "cds": "wind_from_direction_at_10m"},
+    aliases={"aemet": "dv", "cds": "wind_from_direction"},
     valid_range=(0.0, 360.0),
 )
 
@@ -619,7 +619,7 @@ WIND_SPEED_OF_GUST = Variable(
     standard_name="wind_speed_of_gust",
     long_name="Maximum wind gust",
     units="m s-1",
-    aliases={"aemet": "vmax", "cds": "wind_speed_of_gust_at_10m"},
+    aliases={"aemet": "vmax"},
     valid_range=(0.0, 150.0),
 )
 
@@ -740,7 +740,7 @@ SEA_LEVEL_PRESSURE = Variable(
     standard_name="air_pressure_at_mean_sea_level",
     long_name="Air pressure at mean sea level (marine platform)",
     units="hPa",
-    aliases={"cds": "sea_level_pressure"},
+    aliases={"cds": "air_pressure_at_sea_level"},
     valid_range=(870.0, 1085.0),
 )
 
@@ -778,6 +778,24 @@ WAVE_FROM_DIRECTION = Variable(
     units="degree",
     aliases={"cds": "wave_direction"},
     valid_range=(0.0, 360.0),
+)
+
+FRESH_SNOW = Variable(
+    name="fresh_snow",
+    standard_name="thickness_of_snowfall_amount",
+    long_name="Fresh snow accumulation in the observation interval",
+    units="cm",
+    aliases={"cds": "fresh_snow"},
+    valid_range=(0.0, 500.0),
+)
+
+SNOW_WATER_EQUIVALENT = Variable(
+    name="snow_water_equivalent",
+    standard_name="lwe_thickness_of_surface_snow_amount",
+    long_name="Liquid-water equivalent of the snowpack",
+    units="mm",
+    aliases={"cds": "snow_water_equivalent"},
+    valid_range=(0.0, 5000.0),
 )
 
 
@@ -864,6 +882,8 @@ REGISTRY: dict[str, Variable] = {
         WAVE_SIGNIFICANT_HEIGHT,
         WAVE_PERIOD,
         WAVE_FROM_DIRECTION,
+        FRESH_SNOW,
+        SNOW_WATER_EQUIVALENT,
     )
 }
 

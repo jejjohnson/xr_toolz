@@ -70,26 +70,26 @@ def long_format_archive(tmp_path):
     """An archive wired to a client that emits a long-format zip per year."""
 
     def builder(target: Path, form: dict[str, Any]) -> None:
-        years = form["year"]
+        # CDS in-situ sends ``year`` as a single string.
+        year = form["year"]
         rows: list[dict[str, Any]] = []
-        for year in years:
-            for sid, lon, lat in (
-                ("STN-A", 5.0, 45.0),
-                ("STN-B", 10.0, 50.0),
-            ):
-                for month in ("01", "07"):
-                    rows.append(
-                        {
-                            "station_id": sid,
-                            "date_time": f"{year}-{month}-15T00:00:00Z",
-                            "longitude": lon,
-                            "latitude": lat,
-                            "observed_variable": "air_temperature",
-                            "observation_value": 15.0 + float(year) / 1000,
-                            "units": "degC",
-                            "quality_flag": "0",
-                        }
-                    )
+        for sid, lon, lat in (
+            ("STN-A", 5.0, 45.0),
+            ("STN-B", 10.0, 50.0),
+        ):
+            for month in ("01", "07"):
+                rows.append(
+                    {
+                        "station_id": sid,
+                        "date_time": f"{year}-{month}-15T00:00:00Z",
+                        "longitude": lon,
+                        "latitude": lat,
+                        "observed_variable": "air_temperature",
+                        "observation_value": 15.0 + float(year) / 1000,
+                        "units": "degC",
+                        "quality_flag": "0",
+                    }
+                )
         _make_long_csv_zip(target, rows)
 
     client = _FixtureCdsClient(builder)
@@ -111,25 +111,24 @@ def wide_format_archive(tmp_path):
     """An archive wired to a client that emits a wide-format zip per year."""
 
     def builder(target: Path, form: dict[str, Any]) -> None:
-        years = form["year"]
+        year = form["year"]
         rows = []
-        for year in years:
-            for sid, lon, lat in (
-                ("MAR-1", -20.0, 35.0),
-                ("MAR-2", -10.0, 40.0),
-            ):
-                for month in ("03", "09"):
-                    rows.append(
-                        {
-                            "station_id": sid,
-                            "datetime": f"{year}-{month}-10T12:00:00Z",
-                            "longitude": lon,
-                            "latitude": lat,
-                            "air_temperature": 18.0,
-                            "wind_speed": 7.5,
-                            "wave_significant_height": 2.1,
-                        }
-                    )
+        for sid, lon, lat in (
+            ("MAR-1", -20.0, 35.0),
+            ("MAR-2", -10.0, 40.0),
+        ):
+            for month in ("03", "09"):
+                rows.append(
+                    {
+                        "station_id": sid,
+                        "datetime": f"{year}-{month}-10T12:00:00Z",
+                        "longitude": lon,
+                        "latitude": lat,
+                        "air_temperature": 18.0,
+                        "wind_speed": 7.5,
+                        "water_temperature": 15.0,
+                    }
+                )
         _make_wide_csv_zip(target, rows)
 
     client = _FixtureCdsClient(builder)
@@ -228,16 +227,17 @@ def test_long_format_overwrite_refetches(long_format_archive):
     assert len(client.calls) == 2
 
 
-def test_long_format_bbox_filters_client_side(long_format_archive):
-    archive, _ = long_format_archive
-    # STN-A is at (5, 45); STN-B at (10, 50). Keep only STN-A.
+def test_long_format_bbox_forwards_to_area(long_format_archive):
+    """Archive passes ``bbox`` through to the CDS ``area`` form key."""
+    archive, client = long_format_archive
     archive.sync(
         "2020-01-01",
         "2020-12-31",
         bbox=BBox(lon_min=0.0, lon_max=7.0, lat_min=40.0, lat_max=48.0),
     )
-    gdf = archive.load()
-    assert set(gdf["station_id"]) == {"STN-A"}
+    _, form, _ = client.calls[0]
+    # [N, W, S, E]
+    assert form["area"] == [48.0, 0.0, 40.0, 7.0]
 
 
 def test_long_format_load_time_filter(long_format_archive):
@@ -260,7 +260,7 @@ def test_wide_format_sync_and_load(wide_format_archive):
     assert set(gdf["variable"]) == {
         "air_temperature",
         "wind_speed",
-        "wave_significant_height",
+        "water_temperature",
     }
 
 
@@ -271,7 +271,7 @@ def test_wide_format_load_dataset(wide_format_archive):
     assert ds.attrs.get("featureType") == "timeSeries"
     assert "station" in ds.dims
     assert "time" in ds.dims
-    assert "wave_significant_height" in ds
+    assert "water_temperature" in ds
 
 
 # ---- coverage -----------------------------------------------------------

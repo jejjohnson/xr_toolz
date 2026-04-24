@@ -148,9 +148,14 @@ class CDSSource(DataSource):
             "levels": levels.levels if levels else None,
             "extras": extras,
         }
-        # Same format-resolution order as ``_build_form``.
+        # Same format-resolution order as ``_build_form``. Respect the
+        # profile's ``format_key`` (``format`` vs ``data_format``).
+        profile = resolve_profile(dataset_id)
         resolved_format = (
-            extras.get("format") or self.format or resolve_profile(dataset_id).format
+            extras.get(profile.format_key)
+            or extras.get("format")
+            or self.format
+            or profile.format_default
         )
         suffix = _suffix_for_format(resolved_format)
         path = cache_path(self.source_id, dataset_id, request, suffix=suffix)
@@ -165,11 +170,11 @@ class CDSSource(DataSource):
                 levels=levels,
                 **extras,
             )
-        if resolved_format.lower() == "zip":
+        if resolved_format.lower() in {"zip", "csv"}:
             raise ValueError(
-                f"CDS dataset {dataset_id!r} returns a zip bundle, not an "
-                "xarray-readable file. Use CDSInsituArchive or download() "
-                "directly and unpack the archive yourself."
+                f"CDS dataset {dataset_id!r} returns a {resolved_format} "
+                "bundle, not an xarray-readable file. Use CDSInsituArchive "
+                "or download() directly and parse the result yourself."
             )
         engine = _engine_for_format(resolved_format)
         return xr.open_dataset(path, engine=engine) if engine else xr.open_dataset(path)
@@ -188,23 +193,30 @@ class CDSSource(DataSource):
     ) -> dict[str, Any]:
         """Shape the ``cdsapi`` form for ``dataset_id`` per its profile.
 
-        Priority for ``format`` and ``product_type`` when profile admits them:
-        caller-supplied ``extras`` > source-level default > profile default.
+        Priority for ``format`` / ``product_type`` / fixed defaults:
+        caller-supplied ``extras`` > source-level override > profile default.
+        The profile's ``format_key`` ("format" for reanalysis,
+        "data_format" for in-situ) determines which field name the
+        output format goes under.
         """
         profile = resolve_profile(dataset_id)
         # Work on a copy — tests assert the outer extras dict isn't mutated.
         extras = dict(extras)
         form: dict[str, Any] = {}
 
-        # format priority: caller-supplied extras > source-level override >
-        # profile default. ``self.format`` defaults to ``None`` precisely so
-        # the source default is distinguishable from an explicit override.
-        if "format" in extras:
-            form["format"] = extras.pop("format")
+        # Start with profile-fixed baseline (e.g. {"version": "2_0_0"}).
+        # Extras override on the same key.
+        for fk, fv in profile.fixed.items():
+            form[fk] = extras.pop(fk, fv)
+
+        # Output format: caller > source > profile default.
+        fmt_key = profile.format_key
+        if fmt_key in extras:
+            form[fmt_key] = extras.pop(fmt_key)
         elif self.format is not None:
-            form["format"] = self.format
+            form[fmt_key] = self.format
         else:
-            form["format"] = profile.format
+            form[fmt_key] = profile.format_default
 
         if profile.includes_product_type:
             pt = extras.pop("product_type", self.product_type)
@@ -227,7 +239,21 @@ class CDSSource(DataSource):
         if bbox is not None and profile.uses_area:
             form["area"] = bbox.as_cds_area()
         if time is not None:
-            form.update(time.as_cds_form())
+            time_form: dict[str, Any] = dict(time.as_cds_form())
+            if not profile.year_is_array:
+                # In-situ: ``year`` is a single string. We require a
+                # single-year window; callers needing multi-year pull
+                # should loop (the archive does this by year-chunking).
+                years = time_form.get("year", [])
+                if len(years) > 1:
+                    raise ValueError(
+                        f"CDS dataset {dataset_id!r} (profile="
+                        f"{profile.family!r}) accepts one year per request; "
+                        f"got {years!r}."
+                    )
+                if years:
+                    time_form["year"] = years[0]
+            form.update(time_form)
         if levels is not None and profile.uses_pressure_level:
             form["pressure_level"] = levels.as_cds_form()
         form.update(extras)
@@ -243,10 +269,10 @@ _FORMAT_SUFFIX: dict[str, str] = {
     "nc": ".nc",
     "grib": ".grib",
     "grib2": ".grib",
-    # In-situ archives download as a zip bundle of CSVs — ``open()``
-    # returns the raw file path; specialised consumers (e.g.
-    # ``CDSInsituArchive``) unpack it.
+    # CDS in-situ downloads: ``data_format=csv`` usually returns a zip
+    # of CSVs, not a bare CSV, but we treat both the same on-disk.
     "zip": ".zip",
+    "csv": ".zip",
 }
 
 _FORMAT_ENGINE: dict[str, str | None] = {
@@ -255,8 +281,10 @@ _FORMAT_ENGINE: dict[str, str | None] = {
     "nc": None,
     "grib": "cfgrib",
     "grib2": "cfgrib",
-    # No xarray engine for raw zip bundles.
+    # No xarray engine for raw zip / csv bundles — CDSInsituArchive
+    # unpacks and parses them.
     "zip": None,
+    "csv": None,
 }
 
 

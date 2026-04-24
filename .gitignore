@@ -89,6 +89,10 @@ venv/
 
 # Scripts / scrape logs
 .logs/
+
+# Scratch directories — never commit downloaded data.
+scratch/
+**/scratch/
 ENV/
 env.bak/
 venv.bak/

@@ -84,12 +84,9 @@ class CDSInsituArchive:
             ``"monthly"`` — determines the CDS form key of the same
             name and the on-disk partition cadence.
         variables: Restrict fetches to these variables. ``None`` fetches
-            every variable advertised in the preset's ``DatasetInfo``.
-        usage_restrictions: CDS ``usage_restrictions`` form key; keep
-            ``"unrestricted"`` unless you have agreed to the
-            dataset-specific restricted-use conditions.
-        data_quality: CDS ``data_quality`` form key; ``"passed"``
-            excludes rows flagged by the curator.
+            every variable advertised in the preset's ``DatasetInfo`` —
+            CDS in-situ rejects requests with no ``variable`` key, so
+            we fall back rather than send an empty list.
     """
 
     def __init__(
@@ -100,8 +97,6 @@ class CDSInsituArchive:
         *,
         time_aggregation: str = "daily",
         variables: tuple[Variable, ...] | None = None,
-        usage_restrictions: str = "unrestricted",
-        data_quality: str = "passed",
     ) -> None:
         if preset not in PRESET_TO_DATASET:
             raise ValueError(
@@ -117,11 +112,11 @@ class CDSInsituArchive:
         self.preset = preset
         self.dataset_id = PRESET_TO_DATASET[preset]
         self.source = source if source is not None else CDSSource()
+        # Marine ignores ``time_aggregation``; we keep the attribute
+        # for bookkeeping (manifest / path derivation) but don't send
+        # it on marine requests.
         self.time_aggregation = time_aggregation
         self.variables = variables
-        self.usage_restrictions = usage_restrictions
-        self.data_quality = data_quality
-        self.preset_root.mkdir(parents=True, exist_ok=True)
 
     # ---- paths -----------------------------------------------------------
 
@@ -157,8 +152,9 @@ class CDSInsituArchive:
         Args:
             start: Earliest year to fetch. Inclusive.
             end: Latest year to fetch. Inclusive.
-            bbox: Optional client-side spatial filter applied after
-                download (CDS in-situ does not accept an ``area`` key).
+            bbox: Optional server-side spatial filter. CDS in-situ
+                accepts an ``area`` key, so we forward this on the
+                request rather than filtering after download.
             since: If given, skip years strictly earlier than this.
                 Overrides the "completed_chunks" manifest entry.
             overwrite: Re-download years already present in the manifest.
@@ -167,13 +163,8 @@ class CDSInsituArchive:
             The concatenated freshly-fetched data (empty if everything
             was already cached).
         """
-        if self.time_aggregation == "monthly":
-            # Monthly aggregation downloads are tiny; grab the whole
-            # window in one shot to keep the CDS queue happy.
-            chunks = [_yr(start), _yr(end)]
-            year_chunks: list[tuple[int, int]] = [(chunks[0], chunks[1])]
-        else:
-            year_chunks = _year_chunks(start, end)
+        # CDS in-situ always takes one year per request (land + marine).
+        year_chunks = _year_chunks(start, end)
 
         manifest = self._load_manifest()
         done = set() if overwrite else set(manifest.get("completed_chunks", []))
@@ -186,9 +177,9 @@ class CDSInsituArchive:
                 continue
             if since_yr is not None and year_b < since_yr:
                 continue
-            df = self._fetch_chunk(year_a, year_b)
-            if bbox is not None and not df.empty:
-                df = _filter_bbox(df, bbox)
+            # ``bbox`` is server-side for CDS in-situ (profile.uses_area),
+            # so we send it on the request and skip the client-side filter.
+            df = self._fetch_chunk(year_a, year_b, bbox=bbox)
             if not df.empty:
                 self._append(df)
                 fetched.append(df)
@@ -200,32 +191,42 @@ class CDSInsituArchive:
 
         return pd.concat(fetched, ignore_index=True) if fetched else pd.DataFrame()
 
-    def _fetch_chunk(self, year_a: int, year_b: int) -> pd.DataFrame:
-        """Download one year-chunk and return its parsed long-format frame."""
-        years = [str(y) for y in range(year_a, year_b + 1)]
+    def _fetch_chunk(
+        self, year_a: int, year_b: int, *, bbox: BBox | None = None
+    ) -> pd.DataFrame:
+        """Download one year (``year_a == year_b``) and return a long frame.
+
+        CDS in-situ accepts a **single** year per request; year-chunks
+        wider than one are rejected. Callers (``sync``) loop.
+        """
+        if year_a != year_b:
+            raise ValueError(
+                f"CDS in-situ accepts one year per request, got [{year_a}, {year_b}]"
+            )
         months = [f"{m:02d}" for m in range(1, 13)]
         days = [f"{d:02d}" for d in range(1, 32)]
-        time_range = TimeRange.parse(f"{year_a}-01-01", f"{year_b}-12-31")
-        extras: dict[str, Any] = {
-            "time_aggregation": self.time_aggregation,
-            "usage_restrictions": self.usage_restrictions,
-            "data_quality": self.data_quality,
-            # Override what TimeRange.as_cds_form would produce — CDS
-            # in-situ wants full year coverage within a year-chunk.
-            "year": years,
-            "month": months,
-            "day": days,
-        }
-        variables: list[str | Variable] | None = (
-            list(self.variables) if self.variables is not None else None
-        )
+        time_range = TimeRange.parse(f"{year_a}-01-01", f"{year_a}-12-31")
+        extras: dict[str, Any] = {"month": months, "day": days}
+        # Marine doesn't accept ``time_aggregation``; only send it for land.
+        if self.preset == "cds_insitu_land":
+            extras["time_aggregation"] = self.time_aggregation
+        # CDS in-situ rejects requests without a ``variable`` key even
+        # though the schema marks it optional; fall back to the preset's
+        # full variable list when the caller didn't override.
+        variables: list[str | Variable] | None
+        if self.variables is not None:
+            variables = list(self.variables)
+        else:
+            info = self.source.describe(self.dataset_id)
+            variables = list(info.variables) if info.variables else None
 
-        tmp_zip = self.preset_root / f"_tmp_{year_a}_{year_b}.zip"
+        tmp_zip = self.preset_root / f"_tmp_{year_a}.zip"
         try:
             self.source.download(
                 self.dataset_id,
                 tmp_zip,
                 variables=variables,
+                bbox=bbox,
                 time=time_range,
                 **extras,
             )
@@ -374,9 +375,9 @@ def _year_chunks(
 
 _STATION_ID_CANDIDATES = (
     "station_id",
+    "primary_station_id",
     "station",
     "station_name",
-    "primary_station_id",
     "wmo_id",
     "platform_id",
     "platform",
@@ -417,7 +418,10 @@ def _parse_zip_to_long(zip_path: Path) -> pd.DataFrame:
             )
         for name in csv_names:
             with zf.open(name) as handle:
-                df = pd.read_csv(handle, low_memory=False)
+                # CDS in-situ CSVs start with a ``#``-prefixed preamble
+                # (licence, dataset url, time extent, variables list);
+                # ``pandas`` must skip it before hitting the header row.
+                df = pd.read_csv(handle, comment="#", low_memory=False)
             frames.append(_normalise_csv(df))
     if not frames:
         return pd.DataFrame(
@@ -506,21 +510,6 @@ def _pick(lower_to_orig: dict[str, str], candidates: tuple[str, ...]) -> str | N
 
 def _safe_float(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce").astype(float)
-
-
-# ---- spatial filter -----------------------------------------------------
-
-
-def _filter_bbox(df: pd.DataFrame, bbox: BBox) -> pd.DataFrame:
-    """Client-side spatial filter; respects antimeridian-crossing bboxes."""
-    lon = df["lon"]
-    lat = df["lat"]
-    lat_mask = (lat >= bbox.lat_min) & (lat <= bbox.lat_max)
-    if bbox.lon_min <= bbox.lon_max:
-        lon_mask = (lon >= bbox.lon_min) & (lon <= bbox.lon_max)
-    else:
-        lon_mask = (lon >= bbox.lon_min) | (lon <= bbox.lon_max)
-    return df[lat_mask & lon_mask].reset_index(drop=True)
 
 
 # ---- merge / dataset conversion ----------------------------------------

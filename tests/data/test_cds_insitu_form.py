@@ -51,11 +51,13 @@ def cds_source() -> tuple[CDSSource, FakeCdsClient]:
 
 
 def test_resolve_profile_insitu_land():
-    assert resolve_profile("insitu-observations-surface-land").family == "insitu"
+    assert resolve_profile("insitu-observations-surface-land").family == "insitu-land"
 
 
 def test_resolve_profile_insitu_marine():
-    assert resolve_profile("insitu-observations-surface-marine").family == "insitu"
+    assert (
+        resolve_profile("insitu-observations-surface-marine").family == "insitu-marine"
+    )
 
 
 def test_resolve_profile_reanalysis_default():
@@ -69,35 +71,48 @@ def test_resolve_profile_unknown_falls_back_to_reanalysis():
 # ---- form: in-situ -------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "dataset_id",
-    ["insitu-observations-surface-land", "insitu-observations-surface-marine"],
-)
-def test_insitu_form_shape(cds_source, tmp_path, dataset_id):
+def test_insitu_land_form_shape(cds_source, tmp_path):
     src, fake = cds_source
     src.download(
-        dataset_id,
+        "insitu-observations-surface-land",
         tmp_path / "obs.zip",
         variables=["air_temperature"],
         time=TimeRange.parse("2020-06-01", "2020-06-30"),
         time_aggregation="daily",
-        usage_restrictions="unrestricted",
-        data_quality="passed",
     )
     _, form, _ = fake.calls[0]
-    assert form["format"] == "zip"
+    # In-situ uses ``data_format``, not ``format``.
+    assert form["data_format"] == "csv"
+    assert "format" not in form
+    # Fixed profile key.
+    assert form["version"] == "2_0_0"
+    # No product_type on in-situ.
     assert "product_type" not in form
-    assert "area" not in form
     assert form["time_aggregation"] == "daily"
-    assert form["usage_restrictions"] == "unrestricted"
-    assert form["data_quality"] == "passed"
     assert form["variable"] == ["air_temperature"]
-    assert form["year"] == ["2020"]
+    # ``year`` is a single string on CDS in-situ, not an array.
+    assert form["year"] == "2020"
     assert form["month"] == ["06"]
 
 
-def test_insitu_bbox_ignored_in_form(cds_source, tmp_path):
-    """BBox should not appear in the in-situ form — CDS has no area filter."""
+def test_insitu_marine_form_no_time_aggregation(cds_source, tmp_path):
+    """Marine has no ``time_aggregation`` form key."""
+    src, fake = cds_source
+    src.download(
+        "insitu-observations-surface-marine",
+        tmp_path / "obs.zip",
+        variables=["air_temperature"],
+        time=TimeRange.parse("2020-06-01", "2020-06-30"),
+    )
+    _, form, _ = fake.calls[0]
+    assert form["data_format"] == "csv"
+    assert form["version"] == "2_0_0"
+    assert "time_aggregation" not in form
+    assert "product_type" not in form
+
+
+def test_insitu_bbox_forwards_to_area(cds_source, tmp_path):
+    """In-situ accepts server-side ``area`` — bbox must forward."""
     src, fake = cds_source
     src.download(
         "insitu-observations-surface-land",
@@ -108,11 +123,12 @@ def test_insitu_bbox_ignored_in_form(cds_source, tmp_path):
         time_aggregation="daily",
     )
     _, form, _ = fake.calls[0]
-    assert "area" not in form
+    # [N, W, S, E]
+    assert form["area"] == [60.0, -10.0, 30.0, 40.0]
 
 
-def test_insitu_missing_time_aggregation_raises(cds_source, tmp_path):
-    """Clear error when the caller forgets ``time_aggregation``."""
+def test_insitu_land_missing_time_aggregation_raises(cds_source, tmp_path):
+    """Clear error when the land caller forgets ``time_aggregation``."""
     src, _ = cds_source
     with pytest.raises(ValueError, match="time_aggregation"):
         src.download(
@@ -123,8 +139,21 @@ def test_insitu_missing_time_aggregation_raises(cds_source, tmp_path):
         )
 
 
+def test_insitu_multi_year_window_raises(cds_source, tmp_path):
+    """CDS in-situ rejects multi-year requests — we catch this early."""
+    src, _ = cds_source
+    with pytest.raises(ValueError, match="one year per request"):
+        src.download(
+            "insitu-observations-surface-land",
+            tmp_path / "obs.zip",
+            variables=["air_temperature"],
+            time=TimeRange.parse("2019-06-01", "2020-06-30"),
+            time_aggregation="daily",
+        )
+
+
 @pytest.mark.parametrize("agg", ["sub_daily", "daily", "monthly"])
-def test_insitu_all_time_aggregations_supported(cds_source, tmp_path, agg):
+def test_insitu_land_all_time_aggregations_supported(cds_source, tmp_path, agg):
     src, fake = cds_source
     src.download(
         "insitu-observations-surface-land",
@@ -148,7 +177,7 @@ def test_insitu_variable_alias_resolution(cds_source, tmp_path):
         time_aggregation="daily",
     )
     _, form, _ = fake.calls[0]
-    assert form["variable"] == ["wind_speed_at_10m", "accumulated_precipitation"]
+    assert form["variable"] == ["wind_speed", "accumulated_precipitation"]
 
 
 # ---- form: reanalysis regression ----------------------------------------
@@ -205,8 +234,8 @@ def test_extras_format_wins_over_source_and_profile(cds_source, tmp_path):
     assert form["format"] == "grib"
 
 
-def test_insitu_format_is_zip_even_with_source_default_none(cds_source, tmp_path):
-    """Profile default (``zip``) applies when no override is set."""
+def test_insitu_format_is_csv_by_default(cds_source, tmp_path):
+    """Profile default (``data_format=csv``) applies when no override is set."""
     src, fake = cds_source
     assert src.format is None  # default construction
     src.download(
@@ -214,10 +243,9 @@ def test_insitu_format_is_zip_even_with_source_default_none(cds_source, tmp_path
         tmp_path / "m.zip",
         variables=["air_temperature"],
         time=TimeRange.parse("2020-01-01", "2020-01-01"),
-        time_aggregation="daily",
     )
     _, form, _ = fake.calls[0]
-    assert form["format"] == "zip"
+    assert form["data_format"] == "csv"
 
 
 # ---- profile objects -----------------------------------------------------
@@ -227,17 +255,20 @@ def test_profile_identity():
     """Sanity check that the module constants are ``CDSFormProfile`` instances."""
     assert isinstance(INSITU, CDSFormProfile)
     assert isinstance(REANALYSIS, CDSFormProfile)
-    assert INSITU.format == "zip"
-    assert REANALYSIS.format == "netcdf"
+    assert INSITU.format_default == "csv"
+    assert INSITU.format_key == "data_format"
+    assert REANALYSIS.format_default == "netcdf"
+    assert REANALYSIS.format_key == "format"
+    # Land needs ``time_aggregation``; marine does not.
     assert "time_aggregation" in INSITU.required_extras
     assert REANALYSIS.includes_product_type is True
-    assert INSITU.uses_area is False
+    assert INSITU.uses_area is True
 
 
-def test_open_zip_format_raises_clear_error(cds_source):
-    """Zip-format datasets are not xarray-readable; ``open()`` must say so."""
+def test_open_csv_format_raises_clear_error(cds_source):
+    """CSV/zip in-situ outputs aren't xarray-readable; ``open()`` must say so."""
     src, _ = cds_source
-    with pytest.raises(ValueError, match="zip bundle"):
+    with pytest.raises(ValueError, match="bundle"):
         src.open(
             "insitu-observations-surface-land",
             variables=["air_temperature"],
