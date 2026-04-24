@@ -6,6 +6,7 @@ stays a short, readable list of period windows.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -14,10 +15,27 @@ from loguru import logger
 from xr_toolz.data import AemetArchive, AemetSource
 
 
+def _default_scratch_root() -> Path:
+    """Where the scrape archives live.
+
+    Resolution order (first match wins):
+
+    1. ``AEMET_SCRATCH_ROOT`` environment variable — set this to point
+       at any directory, e.g. ``AEMET_SCRATCH_ROOT=~/aemet`` or
+       ``/mnt/data/aemet``.
+    2. ``XR_TOOLZ_AEMET_ROOT`` environment variable (alias).
+    3. ``./scratch/aemet`` under the current working directory — the
+       safe portable default that works for any developer / CI.
+    """
+    for var in ("AEMET_SCRATCH_ROOT", "XR_TOOLZ_AEMET_ROOT"):
+        override = os.environ.get(var)
+        if override:
+            return Path(override).expanduser()
+    return Path.cwd() / "scratch" / "aemet"
+
+
 # Where observations land. The parent script imports + uses this.
-SCRATCH_ROOT = Path(
-    "/home/azureuser/cloudfiles/code/Users/adm.jjohnson72/scratch/aemet"
-)
+SCRATCH_ROOT = _default_scratch_root()
 
 # Where logs go — under the repo, git-ignored.
 LOG_ROOT = Path(__file__).resolve().parent.parent / ".logs"

@@ -149,7 +149,8 @@ AEMET_DATASETS: dict[str, DatasetInfo] = {
         license="AEMET OpenData (attribution required)",
         notes=(
             "Month- and year-level aggregates per station. "
-            "AemetSource chunks long year ranges into 20-year requests."
+            "AemetSource chunks long year ranges into 3-year (36-month) "
+            "requests — AEMET's per-request cap on this endpoint."
         ),
         extras={"aemet_kind": "aemet_monthly"},
     ),

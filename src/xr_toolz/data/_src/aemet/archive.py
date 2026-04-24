@@ -148,9 +148,13 @@ class AemetArchive:
 
         Behaviour:
 
-        - ``since`` defaults to the archive's last stored time per
-          station (or the preset-specific floor — e.g. 1920 for
-          daily / monthly).
+        - ``since`` defaults to one day after the archive's **global**
+          latest stored time (the newest row across all stations), or
+          the preset-specific floor (e.g. 1920 for daily / monthly)
+          when the archive is empty. Per-station resume — so stations
+          missing recent records get backfilled even when others are
+          up-to-date — is not implemented; use an explicit ``since``
+          if you need that behaviour.
         - ``until`` defaults to ``now`` in UTC.
         - Re-running with the same window overwrites the overlapping
           slice; it is idempotent, not additive.
@@ -377,7 +381,15 @@ def _geodataframe_to_dataset(gdf) -> xr.Dataset:
         sub = pivoted.get(var)
         if sub is None:
             continue
-        arr = sub.reindex(columns=times).to_numpy(dtype=np.float64, na_value=np.nan)
+        sub = sub.reindex(columns=times)
+        # Preserve the column's original dtype. AEMET's daily preset
+        # writes non-numeric passthrough fields (hour-of-extreme
+        # strings like ``horatmin``, ``horaracha``); casting those to
+        # float64 would either silently lose them or raise.
+        if pd.api.types.is_numeric_dtype(df[var]):
+            arr = sub.to_numpy(dtype=np.float64, na_value=np.nan)
+        else:
+            arr = sub.to_numpy(dtype=object)
         data[var] = (("station", "time"), arr)
     return xr.Dataset(
         {name: xr.DataArray(arr, dims=dims) for name, (dims, arr) in data.items()},

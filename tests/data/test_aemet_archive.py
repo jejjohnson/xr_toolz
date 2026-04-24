@@ -130,6 +130,55 @@ def test_archive_sync_and_load_roundtrip(tmp_path: Path):
     assert list(gdf["station_id"].unique()) == ["s1"]
 
 
+def test_archive_load_dataset_preserves_non_numeric(tmp_path: Path):
+    """Daily archives carry string passthrough cols (``horatmin``, etc.).
+
+    ``load_dataset`` used to force every value column to ``float64``,
+    which either dropped strings silently or raised. Preserve dtype.
+    """
+    import geopandas as gpd
+    from shapely.geometry import Point
+
+    # Build a tiny GeoParquet archive by hand so we can mix numeric +
+    # string passthrough columns — mirrors the shape the daily
+    # endpoint produces.
+    gdf = gpd.GeoDataFrame(
+        [
+            {
+                "station_id": "s1",
+                "time": pd.Timestamp("2024-01-01"),
+                "lon": 0.0,
+                "lat": 40.0,
+                "air_temperature_daily_mean": 10.0,
+                "horatmin": "07:15",
+            },
+            {
+                "station_id": "s1",
+                "time": pd.Timestamp("2024-01-02"),
+                "lon": 0.0,
+                "lat": 40.0,
+                "air_temperature_daily_mean": 11.0,
+                "horatmin": "07:20",
+            },
+        ],
+        geometry=[Point(0.0, 40.0), Point(0.0, 40.0)],
+        crs="EPSG:4326",
+    )
+    archive = AemetArchive(
+        root=tmp_path,
+        source=MagicMock(spec=AemetSource),
+    )
+    gdf.to_parquet(archive._preset_path("aemet_daily"))
+
+    ds = archive.load_dataset("aemet_daily")
+    assert "air_temperature_daily_mean" in ds
+    assert "horatmin" in ds
+    # Numeric column must be float64; string column must stay object.
+    assert ds["air_temperature_daily_mean"].dtype == np.float64
+    assert ds["horatmin"].dtype == object
+    assert ds["horatmin"].sel(station="s1").values.tolist() == ["07:15", "07:20"]
+
+
 def test_archive_load_dataset_reconstructs_cube(tmp_path: Path):
     archive = _make_archive(
         tmp_path, _make_monthly_ds(["s1"], ["2024-01-01", "2024-01-02"], [[10.0, 11.0]])

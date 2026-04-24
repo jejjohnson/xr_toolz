@@ -30,9 +30,10 @@ def parse_dms(text: str) -> float:
     sec = int(match.group("sec"))
     hemi = match.group("hemi").upper()
     # AEMET occasionally reports seconds == 60 (e.g. ``162860W``) as a
-    # rounded boundary; accept 0..60 inclusive so we don't reject real
-    # stations. Reject anything further out of range.
-    if not 0 <= minutes <= 60 or not 0 <= sec <= 60:
+    # rounded boundary; accept that tolerance for seconds so we don't
+    # reject real stations. Minutes must still be in the normal 0..59
+    # range — anything else is genuinely malformed.
+    if not 0 <= minutes < 60 or not 0 <= sec <= 60:
         raise ValueError(f"invalid minutes/seconds in {text!r}")
     decimal = deg + minutes / 60.0 + sec / 3600.0
     if hemi in ("S", "W"):

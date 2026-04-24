@@ -2942,6 +2942,14 @@ dependencies = [
     { name = "xskillscore" },
 ]
 
+[package.optional-dependencies]
+aemet = [
+    { name = "geopandas" },
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "pyarrow" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "geopandas" },
@@ -2973,11 +2981,15 @@ typecheck = [
 
 [package.metadata]
 requires-dist = [
+    { name = "geopandas", marker = "extra == 'aemet'", specifier = ">=1.1.3" },
+    { name = "httpx", marker = "extra == 'aemet'", specifier = ">=0.28.1" },
+    { name = "loguru", marker = "extra == 'aemet'", specifier = ">=0.7.3" },
     { name = "metpy", specifier = ">=1.6" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "numpy-groupies", specifier = ">=0.11" },
     { name = "pandas", specifier = ">=2.1" },
     { name = "pint-xarray", specifier = ">=0.4" },
+    { name = "pyarrow", marker = "extra == 'aemet'", specifier = ">=24.0.0" },
     { name = "pyproj", specifier = ">=3.6" },
     { name = "regionmask", specifier = ">=0.12" },
     { name = "rioxarray", specifier = ">=0.15" },
@@ -2987,6 +2999,7 @@ requires-dist = [
     { name = "xrft", specifier = ">=1.0" },
     { name = "xskillscore", specifier = ">=0.0.26" },
 ]
+provides-extras = ["aemet"]
 
 [package.metadata.requires-dev]
 dev = [

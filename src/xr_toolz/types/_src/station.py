@@ -19,9 +19,13 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from math import asin, cos, radians, sin, sqrt
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from xr_toolz.types._src.geometry import BBox
+
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 _EARTH_RADIUS_KM = 6371.0088
@@ -199,7 +203,7 @@ class StationCollection:
         """Sorted unique non-empty ``community`` values."""
         return _sorted_unique(s.community for s in self.stations)
 
-    def to_dataframe(self):
+    def to_dataframe(self) -> pd.DataFrame:
         """Return the collection as a :class:`pandas.DataFrame`."""
         import pandas as pd
 

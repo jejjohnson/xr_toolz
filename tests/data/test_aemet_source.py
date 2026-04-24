@@ -285,6 +285,24 @@ def test_unknown_dataset_raises(source_and_fake):
 # ---- subset by variables ------------------------------------------------
 
 
+def test_chunk_days_range_includes_single_day():
+    """Single-day windows must emit one chunk, not zero."""
+    from datetime import UTC, datetime
+
+    from xr_toolz.data._src.aemet.source import _chunk_days_range
+
+    day = datetime(2024, 1, 1, tzinfo=UTC)
+    chunks = _chunk_days_range("sid", day, day, chunk_days=180)
+    assert len(chunks) == 1
+    assert chunks[0] == ("sid", day, day)
+
+    # And a two-day window still emits exactly one chunk (fits in 180 days).
+    next_day = datetime(2024, 1, 2, tzinfo=UTC)
+    chunks = _chunk_days_range("sid", day, next_day, chunk_days=180)
+    assert len(chunks) == 1
+    assert chunks[0] == ("sid", day, next_day)
+
+
 def test_rate_limit_spaces_requests():
     """Two back-to-back fetches should honour ``min_interval_s``."""
     import time

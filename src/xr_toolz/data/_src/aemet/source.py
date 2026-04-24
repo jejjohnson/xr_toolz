@@ -156,7 +156,8 @@ class AemetSource(DataSource):
             import httpx
         except ImportError as exc:  # pragma: no cover - defensive
             raise ImportError(
-                "AemetSource requires 'httpx'. Install with: pip install httpx"
+                "AemetSource requires optional AEMET dependencies. "
+                "Install with: pip install 'xr_toolz[aemet]'"
             ) from exc
         self._client = httpx.Client(timeout=self.timeout_s)
         return self._client
@@ -776,10 +777,17 @@ def _daily_url(sid: str, start: datetime, end: datetime) -> str:
 def _chunk_days_range(
     sid: str, start: datetime, end: datetime, chunk_days: int
 ) -> list[tuple[str, datetime, datetime]]:
+    """Split ``[start, end]`` into chunks of at most ``chunk_days`` each.
+
+    Uses ``cur <= end`` so single-day windows (``start == end`` — e.g.
+    ``TimeRange.parse("2024-01-01", "2024-01-01")``) still emit exactly
+    one ``(start, end)`` chunk and trigger a real AEMET call. ``<``
+    would silently return no chunks, producing a NaN-only dataset.
+    """
     out: list[tuple[str, datetime, datetime]] = []
     cur = start
     delta = timedelta(days=chunk_days)
-    while cur < end:
+    while cur <= end:
         nxt = min(cur + delta, end)
         out.append((sid, cur, nxt))
         cur = nxt + timedelta(seconds=1)

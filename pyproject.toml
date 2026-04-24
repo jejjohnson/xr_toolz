@@ -37,6 +37,18 @@ dependencies = [
     "numpy-groupies>=0.11",
 ]
 
+[project.optional-dependencies]
+# ``pip install xr_toolz[aemet]`` — runtime deps for the AEMET adapter
+# and the GeoParquet-backed archive. ``xr_toolz.data.AemetSource`` and
+# ``xr_toolz.data.AemetArchive`` import these lazily and surface a
+# pointer to this extra in their ImportError messages.
+aemet = [
+    "httpx>=0.28.1",
+    "geopandas>=1.1.3",
+    "pyarrow>=24.0.0",
+    "loguru>=0.7.3",
+]
+
 [project.urls]
 Repository = "https://github.com/jejjohnson/xr_toolz"
 
