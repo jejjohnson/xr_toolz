@@ -149,14 +149,25 @@ class CDSSource(DataSource):
             "extras": extras,
         }
         # Same format-resolution order as ``_build_form``. Respect the
-        # profile's ``format_key`` (``format`` vs ``data_format``).
+        # profile's ``format_key`` (``format`` vs ``data_format``) and
+        # treat ``None`` as "not provided" so a stale kwarg can't blank
+        # the resolved format out.
         profile = resolve_profile(dataset_id)
+        candidate = extras.get(profile.format_key) or extras.get("format")
         resolved_format = (
-            extras.get(profile.format_key)
-            or extras.get("format")
-            or self.format
-            or profile.format_default
+            candidate
+            if isinstance(candidate, str) and candidate
+            else (self.format or profile.format_default)
         )
+        # Fail fast before the (potentially long, CDS-queued) download
+        # when the output format isn't xarray-readable — use
+        # ``CDSInsituArchive`` or ``download()`` for those.
+        if resolved_format.lower() in {"zip", "csv"}:
+            raise ValueError(
+                f"CDS dataset {dataset_id!r} returns a {resolved_format} "
+                "bundle, not an xarray-readable file. Use CDSInsituArchive "
+                "or download() directly and parse the result yourself."
+            )
         suffix = _suffix_for_format(resolved_format)
         path = cache_path(self.source_id, dataset_id, request, suffix=suffix)
         if not path.exists():
@@ -169,12 +180,6 @@ class CDSSource(DataSource):
                 depth=depth,
                 levels=levels,
                 **extras,
-            )
-        if resolved_format.lower() in {"zip", "csv"}:
-            raise ValueError(
-                f"CDS dataset {dataset_id!r} returns a {resolved_format} "
-                "bundle, not an xarray-readable file. Use CDSInsituArchive "
-                "or download() directly and parse the result yourself."
             )
         engine = _engine_for_format(resolved_format)
         return xr.open_dataset(path, engine=engine) if engine else xr.open_dataset(path)
@@ -209,10 +214,21 @@ class CDSSource(DataSource):
         for fk, fv in profile.fixed.items():
             form[fk] = extras.pop(fk, fv)
 
-        # Output format: caller > source > profile default.
+        # Output format: caller > source > profile default. The caller
+        # may pass the override under either the profile's
+        # ``format_key`` ("data_format" for in-situ) or the generic
+        # alias ``"format"`` — both are recognised. ``None`` is treated
+        # as "not provided" so a stale ``format=None`` kwarg doesn't
+        # blank out the form key.
         fmt_key = profile.format_key
-        if fmt_key in extras:
-            form[fmt_key] = extras.pop(fmt_key)
+        caller_fmt: Any = None
+        for alias in (fmt_key, "format"):
+            if alias in extras:
+                caller_fmt = extras.pop(alias)
+                if caller_fmt is not None:
+                    break
+        if isinstance(caller_fmt, str) and caller_fmt:
+            form[fmt_key] = caller_fmt
         elif self.format is not None:
             form[fmt_key] = self.format
         else:
@@ -223,7 +239,14 @@ class CDSSource(DataSource):
             if pt is not None:
                 form["product_type"] = pt
         elif "product_type" in extras:
-            form["product_type"] = extras.pop("product_type")
+            # The dataset family has no ``product_type`` form key —
+            # forwarding a caller's value would make CDS reject the
+            # request. Surface the mismatch clearly.
+            raise ValueError(
+                f"CDS dataset {dataset_id!r} (profile={profile.family!r}) "
+                "does not accept the 'product_type' form key; remove the "
+                "product_type argument for this dataset."
+            )
 
         if profile.required_extras:
             missing = [k for k in profile.required_extras if k not in extras]

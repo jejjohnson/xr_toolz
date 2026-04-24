@@ -275,3 +275,68 @@ def test_open_csv_format_raises_clear_error(cds_source):
             time=TimeRange.parse("2020-01-01", "2020-01-01"),
             time_aggregation="daily",
         )
+
+
+# ---- review follow-ups --------------------------------------------------
+
+
+def test_open_bails_before_download_for_zip_csv(cds_source):
+    """``open()`` must raise *before* hitting ``retrieve`` for zip/csv formats."""
+    src, fake = cds_source
+    with pytest.raises(ValueError, match="bundle"):
+        src.open(
+            "insitu-observations-surface-marine",
+            variables=["air_temperature"],
+            time=TimeRange.parse("2020-01-01", "2020-01-01"),
+        )
+    # No CDS call should have been made — otherwise we'd be wasting
+    # queue time on a guaranteed-failing code path.
+    assert fake.calls == []
+
+
+def test_product_type_rejected_on_profile_without_it(cds_source, tmp_path):
+    """In-situ profiles don't have ``product_type``; caller's arg must raise."""
+    src, _ = cds_source
+    with pytest.raises(ValueError, match="product_type"):
+        src.download(
+            "insitu-observations-surface-land",
+            tmp_path / "obs.zip",
+            variables=["air_temperature"],
+            time=TimeRange.parse("2020-01-01", "2020-01-01"),
+            time_aggregation="daily",
+            product_type="reanalysis",
+        )
+
+
+def test_format_extras_maps_to_profile_data_format_key(cds_source, tmp_path):
+    """``format=netcdf`` on an in-situ download must rewrite to ``data_format``."""
+    src, fake = cds_source
+    src.download(
+        "insitu-observations-surface-marine",
+        tmp_path / "obs.nc",
+        variables=["air_temperature"],
+        time=TimeRange.parse("2020-01-01", "2020-01-01"),
+        format="netcdf",
+    )
+    _, form, _ = fake.calls[0]
+    # The profile's format_key is ``data_format`` — that's what the CDS
+    # API actually reads. The alias ``format`` must be translated, not
+    # forwarded alongside, otherwise CDS gets two conflicting keys.
+    assert form["data_format"] == "netcdf"
+    assert "format" not in form
+
+
+def test_format_none_in_extras_is_ignored(cds_source, tmp_path):
+    """``format=None`` must not blank out the form's format key."""
+    src, fake = cds_source
+    src.download(
+        "reanalysis-era5-single-levels",
+        tmp_path / "x.nc",
+        variables=["t2m"],
+        time=TimeRange.parse("2020-01-01", "2020-01-01"),
+        format=None,
+    )
+    _, form, _ = fake.calls[0]
+    # Should fall through to the profile default (netcdf) rather than
+    # emitting ``form["format"] = None``.
+    assert form["format"] == "netcdf"

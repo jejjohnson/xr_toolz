@@ -314,3 +314,129 @@ def test_sync_inverted_window_raises(long_format_archive):
     archive, _ = long_format_archive
     with pytest.raises(ValueError, match="start year"):
         archive.sync("2022-01-01", "2020-01-01")
+
+
+# ---- review follow-ups --------------------------------------------------
+
+
+def _blank_station_builder(null_form: str):
+    """Build a fake CDS client that emits one good row + one null-station row."""
+
+    def builder(target: Path, form: dict[str, Any]) -> None:
+        year = form["year"]
+        rows = [
+            {
+                "station_id": "GOOD",
+                "date_time": f"{year}-06-01T00:00:00Z",
+                "longitude": 5.0,
+                "latitude": 45.0,
+                "observed_variable": "air_temperature",
+                "observation_value": 15.0,
+            },
+            {
+                "station_id": null_form,  # ``null`` / ``""`` / NaN
+                "date_time": f"{year}-06-02T00:00:00Z",
+                "longitude": 5.5,
+                "latitude": 45.5,
+                "observed_variable": "air_temperature",
+                "observation_value": 16.0,
+            },
+        ]
+        _make_long_csv_zip(target, rows)
+
+    return builder
+
+
+@pytest.mark.parametrize("null_form", ["null", "", "NaN"])
+def test_null_station_ids_are_dropped(tmp_path, null_form):
+    """Rows whose station_id is missing/"null" must not leak into the archive."""
+    client = _FixtureCdsClient(_blank_station_builder(null_form))
+    source = CDSSource(credentials=CDSCredentials(url="u", key="k"), client=client)
+    archive = CDSInsituArchive(
+        root=tmp_path,
+        preset="cds_insitu_land",
+        source=source,
+        time_aggregation="daily",
+    )
+    archive.sync("2020-01-01", "2020-12-31")
+    gdf = archive.load()
+    assert set(gdf["station_id"]) == {"GOOD"}
+
+
+def test_sync_since_forces_refresh_of_at_or_after_years(long_format_archive):
+    """``since=X`` must re-fetch years at/after X, overriding ``completed_chunks``."""
+    archive, client = long_format_archive
+    archive.sync("2020-01-01", "2021-12-31")
+    n_after_initial = len(client.calls)
+    # Both 2020 and 2021 are now "done". A second sync with since=2021
+    # must re-hit 2021 (targeted refresh) while leaving 2020 alone.
+    archive.sync("2020-01-01", "2021-12-31", since="2021-01-01")
+    new_calls = client.calls[n_after_initial:]
+    fetched_years = [c[1]["year"] for c in new_calls]
+    assert fetched_years == ["2021"]
+
+
+def test_sync_since_skips_years_before_cutoff(long_format_archive):
+    """``since=X`` must drop years strictly earlier than X."""
+    archive, client = long_format_archive
+    archive.sync("2019-01-01", "2021-12-31", since="2020-01-01")
+    fetched_years = sorted({c[1]["year"] for c in client.calls})
+    assert fetched_years == ["2020", "2021"]
+
+
+def test_load_accepts_tz_aware_timestamp(long_format_archive):
+    """``load(start=<tz-aware>)`` must not raise when callers use archive times."""
+    archive, _ = long_format_archive
+    archive.sync("2020-01-01", "2020-12-31")
+    start = pd.Timestamp("2020-07-01", tz="UTC")
+    gdf = archive.load(start=start)
+    assert len(gdf) > 0
+    assert pd.Timestamp(gdf["time"].min()).month >= 7
+
+
+def test_coverage_counts_unique_timestamps_not_rows(wide_format_archive):
+    """Long-format duplicates each timestamp per variable; coverage must de-dup."""
+    archive, _ = wide_format_archive
+    archive.sync("2020-01-01", "2020-12-31")
+    cov = archive.coverage()
+    # Fixture emits 2 distinct timestamps per station but 3 variables
+    # per (station, time), so the raw row count is 6 per station. The
+    # honest "n_timesteps" is 2.
+    for c in cov:
+        assert c.n_timesteps == 2
+
+
+def test_scope_fingerprint_mismatch_raises(long_format_archive):
+    """Changing ``bbox`` mid-archive must raise rather than silently stale."""
+    archive, _ = long_format_archive
+    archive.sync("2020-01-01", "2020-12-31", bbox=BBox(0.0, 20.0, 40.0, 60.0))
+    with pytest.raises(ValueError, match="scope"):
+        archive.sync("2020-01-01", "2020-12-31", bbox=BBox(0.0, 30.0, 40.0, 60.0))
+
+
+def test_manifest_dedupes_completed_chunks_on_overwrite(long_format_archive):
+    """``overwrite=True`` mustn't append duplicates to completed_chunks."""
+    import json
+
+    archive, _ = long_format_archive
+    archive.sync("2020-01-01", "2020-12-31")
+    archive.sync("2020-01-01", "2020-12-31", overwrite=True)
+    manifest = json.loads(archive.manifest_path.read_text())
+    completed = manifest["completed_chunks"]
+    assert completed == sorted(set(completed))
+    assert completed.count("2020") == 1
+
+
+def test_load_dataset_vectorised_smoke(long_format_archive):
+    """Sanity check the vectorised ``_long_to_dataset`` round-trips correctly."""
+    archive, _ = long_format_archive
+    archive.sync("2020-01-01", "2020-12-31")
+    ds = archive.load_dataset()
+    assert set(ds.dims) == {"station", "time"}
+    assert "air_temperature" in ds
+    # The fixture emits 2 timestamps (Jan 15 + Jul 15) × 2 stations.
+    assert ds.sizes["station"] == 2
+    assert ds.sizes["time"] == 2
+    arr = ds["air_temperature"].values
+    # No cell should be unfilled — both stations reported both months.
+    assert not pd.isna(arr).any()

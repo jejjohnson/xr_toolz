@@ -37,7 +37,7 @@ time_aggregation)`` pair. Keep separate archives for
 
 from __future__ import annotations
 
-import contextlib
+import hashlib
 import json
 import zipfile
 from dataclasses import dataclass
@@ -154,10 +154,16 @@ class CDSInsituArchive:
             end: Latest year to fetch. Inclusive.
             bbox: Optional server-side spatial filter. CDS in-situ
                 accepts an ``area`` key, so we forward this on the
-                request rather than filtering after download.
-            since: If given, skip years strictly earlier than this.
-                Overrides the "completed_chunks" manifest entry.
-            overwrite: Re-download years already present in the manifest.
+                request rather than filtering after download. The
+                archive records the bbox as part of the manifest's
+                "scope" and refuses to reuse partitions fetched under
+                a different bbox — re-run on a fresh root if you want
+                to change scope mid-archive.
+            since: If given, skip years strictly earlier than this and
+                force a re-fetch of years at/after the cutoff even if
+                they're already in the manifest (targeted refresh).
+            overwrite: Re-download every year in the window regardless
+                of the manifest.
 
         Returns:
             The concatenated freshly-fetched data (empty if everything
@@ -167,26 +173,45 @@ class CDSInsituArchive:
         year_chunks = _year_chunks(start, end)
 
         manifest = self._load_manifest()
+        current_scope = _scope_fingerprint(bbox, self.variables)
+        stored_scope = manifest.get("scope")
+        if stored_scope is not None and stored_scope != current_scope:
+            raise ValueError(
+                f"archive at {self.preset_root} was previously synced with "
+                f"scope {stored_scope!r}; this call uses {current_scope!r}. "
+                "Re-running with a different bbox / variables would silently "
+                "leave already-marked years partial — rerun on a fresh root "
+                "or call .sync(..., overwrite=True) to re-pull everything "
+                "under the new scope."
+            )
         done = set() if overwrite else set(manifest.get("completed_chunks", []))
         since_yr = _yr(since) if since is not None else None
 
         fetched: list[pd.DataFrame] = []
         for year_a, year_b in year_chunks:
             key = _chunk_key(year_a, year_b)
-            if key in done:
-                continue
+            # Drop years entirely before the ``since`` cutoff.
             if since_yr is not None and year_b < since_yr:
                 continue
-            # ``bbox`` is server-side for CDS in-situ (profile.uses_area),
-            # so we send it on the request and skip the client-side filter.
+            # Skip "done" only when ``since`` wasn't supplied. With
+            # ``since`` set the user is explicitly asking for a
+            # targeted refresh of recent years.
+            if since_yr is None and key in done:
+                continue
             df = self._fetch_chunk(year_a, year_b, bbox=bbox)
             if not df.empty:
                 self._append(df)
                 fetched.append(df)
-            manifest.setdefault("completed_chunks", []).append(key)
+            # ``setdefault`` + ``append`` can duplicate entries when
+            # ``overwrite=True`` re-fetches an already-listed year —
+            # track completions as a sorted unique list instead.
+            done_list = set(manifest.get("completed_chunks", []))
+            done_list.add(key)
+            manifest["completed_chunks"] = sorted(done_list)
             manifest["last_sync_utc"] = datetime.now(UTC).isoformat()
             manifest["preset"] = self.preset
             manifest["time_aggregation"] = self.time_aggregation
+            manifest["scope"] = current_scope
             self._write_manifest(manifest)
 
         return pd.concat(fetched, ignore_index=True) if fetched else pd.DataFrame()
@@ -254,9 +279,9 @@ class CDSInsituArchive:
             )
         gdf = gpd.read_parquet(self.data_path)
         if start is not None:
-            gdf = gdf[gdf["time"] >= pd.Timestamp(start, tz="UTC")]
+            gdf = gdf[gdf["time"] >= _as_utc(start)]
         if end is not None:
-            gdf = gdf[gdf["time"] <= pd.Timestamp(end, tz="UTC")]
+            gdf = gdf[gdf["time"] <= _as_utc(end)]
         return gdf
 
     def load_dataset(
@@ -286,8 +311,12 @@ class CDSInsituArchive:
             return []
         out: list[ArchiveCoverage] = []
         for sid, sub in gdf.groupby("station_id", sort=True):
-            times = pd.to_datetime(sub["time"])
-            if len(times) == 0:
+            times = pd.to_datetime(sub["time"]).dropna()
+            # In long-format each timestamp is repeated per variable,
+            # so ``len(sub)`` over-counts. Use the unique-timestamp
+            # count instead.
+            n_unique = int(times.nunique())
+            if n_unique == 0:
                 first: pd.Timestamp | None = None
                 last: pd.Timestamp | None = None
             else:
@@ -299,7 +328,7 @@ class CDSInsituArchive:
                     station_id=str(sid),
                     first=first,
                     last=last,
-                    n_timesteps=len(sub),
+                    n_timesteps=n_unique,
                 )
             )
         return out
@@ -354,6 +383,36 @@ class CDSInsituArchive:
 
 def _yr(value: str | pd.Timestamp) -> int:
     return int(pd.Timestamp(value).year)
+
+
+def _as_utc(value: str | pd.Timestamp) -> pd.Timestamp:
+    """Return ``value`` as a tz-aware UTC ``Timestamp``, tz-naive or not."""
+    ts = pd.Timestamp(value)
+    ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+    return cast("pd.Timestamp", ts)
+
+
+def _scope_fingerprint(bbox: BBox | None, variables) -> str:
+    """Stable short digest of (bbox, variables) for manifest equality.
+
+    Used to catch callers that change the ``sync()`` scope mid-archive
+    — the stored partitions would no longer be a faithful mirror of
+    that scope, so we refuse to append rather than silently leave the
+    archive partial.
+    """
+    bbox_part: Any
+    if bbox is None:
+        bbox_part = None
+    else:
+        bbox_part = [bbox.lon_min, bbox.lon_max, bbox.lat_min, bbox.lat_max]
+    var_part: list[str] = []
+    for v in variables or ():
+        name = v if isinstance(v, str) else v.name
+        var_part.append(str(name))
+    payload = json.dumps(
+        {"bbox": bbox_part, "variables": sorted(var_part)}, sort_keys=True
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
 
 def _chunk_key(year_a: int, year_b: int) -> str:
@@ -454,7 +513,11 @@ def _normalise_csv(df: pd.DataFrame) -> pd.DataFrame:
 
     out = pd.DataFrame(
         {
-            "station_id": df[station_col].astype(str),
+            # ``pd.StringDtype`` preserves NA so the downstream
+            # ``dropna(subset=["station_id", "time"])`` actually drops
+            # blank-station rows instead of keeping them as the literal
+            # string "nan" (which would corrupt station counts).
+            "station_id": _station_id_series(df[station_col]),
             "time": pd.to_datetime(df[time_col], errors="coerce", utc=True),
             "lon": _safe_float(df[lon_col]) if lon_col else np.nan,
             "lat": _safe_float(df[lat_col]) if lat_col else np.nan,
@@ -489,7 +552,7 @@ def _normalise_csv(df: pd.DataFrame) -> pd.DataFrame:
     )
     return pd.DataFrame(
         {
-            "station_id": melted["_station"].astype(str),
+            "station_id": _station_id_series(melted["_station"]),
             "time": pd.to_datetime(melted["_time"], utc=True),
             "lon": melted["_lon"].astype(float),
             "lat": melted["_lat"].astype(float),
@@ -510,6 +573,20 @@ def _pick(lower_to_orig: dict[str, str], candidates: tuple[str, ...]) -> str | N
 
 def _safe_float(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce").astype(float)
+
+
+def _station_id_series(series: pd.Series) -> pd.Series:
+    """Normalise a station-id column while preserving NA.
+
+    Casting with ``.astype(str)`` turns missing ids into the literal
+    ``"nan"`` and defeats a later ``dropna`` — so we go through
+    pandas' nullable ``string`` dtype, which keeps NA as NA. Rows
+    whose CDS-side value is the string ``"null"`` (marine CSV quirk
+    for anonymous platforms) are treated as missing too.
+    """
+    s = series.astype("string")
+    s = s.mask(s.str.lower().isin({"nan", "null", "none", ""}))
+    return s
 
 
 # ---- merge / dataset conversion ----------------------------------------
@@ -548,22 +625,26 @@ def _long_to_dataset(gdf, source: str) -> xr.Dataset:
     df["station_id"] = df["station_id"].astype(str)
 
     if "variable" in df.columns and "value" in df.columns:
+        # Pivot once to a (station, (variable, time)) wide frame; each
+        # variable's 2-D slice is then a single ``xs`` + ``reindex`` +
+        # ``to_numpy``. The prior double-loop pinned ``_long_to_dataset``
+        # to O(stations × times) Python-level ``.loc`` lookups, which
+        # is prohibitive on real in-situ archives (hundreds of
+        # thousands of rows).
         pivoted = df.pivot_table(
             index="station_id",
-            columns=["time", "variable"],
+            columns=["variable", "time"],
             values="value",
             aggfunc="first",
         )
         stations = pivoted.index.astype(str).tolist()
-        times = sorted({t for t, _ in pivoted.columns})
-        variables = sorted({v for _, v in pivoted.columns})
+        times = sorted({t for _, t in pivoted.columns})
+        variables = sorted({v for v, _ in pivoted.columns})
         data: dict[str, xr.DataArray] = {}
         for var in variables:
-            arr = np.full((len(stations), len(times)), np.nan, dtype=np.float64)
-            for i, sid in enumerate(stations):
-                for j, t in enumerate(times):
-                    with contextlib.suppress(KeyError):
-                        arr[i, j] = pivoted.loc[sid, (t, var)]
+            sub = pivoted.xs(var, axis=1, level="variable", drop_level=True)
+            sub = sub.reindex(columns=times)
+            arr = sub.to_numpy(dtype=np.float64, na_value=np.nan)
             data[var] = xr.DataArray(arr, dims=("station", "time"))
         return xr.Dataset(
             data,
