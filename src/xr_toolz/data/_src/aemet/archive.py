@@ -170,10 +170,15 @@ class AemetArchive:
         # archive already covers ``end`` (routine same-day re-run) that
         # makes ``start > end`` which ``TimeRange.parse`` correctly
         # rejects. Short-circuit to a no-op fetch so idempotent
-        # re-syncs don't raise.
-        if pd.Timestamp(start, tz="UTC") > pd.Timestamp(end, tz="UTC"):
+        # re-syncs don't raise — *except* for hourly, where the AEMET
+        # endpoint is a rolling-24h window that ignores the TimeRange
+        # entirely. Hourly should always re-fetch so new observations
+        # published since the last run land in the archive.
+        if preset not in _TIME_INSENSITIVE_PRESETS and (
+            pd.Timestamp(start, tz="UTC") > pd.Timestamp(end, tz="UTC")
+        ):
             return xr.Dataset()
-        tr = TimeRange.parse(start, end)
+        tr = TimeRange.parse(start, end) if start <= end else None
         fresh = _FETCH_TABLE[preset](self.source, station_ids, tr)
         self._append(preset, fresh)
         return fresh
@@ -465,21 +470,26 @@ def _stations_from_geodataframe(gdf) -> StationCollection:
 # ---- preset fetch dispatch ----------------------------------------------
 
 
-def _fetch_daily(source: AemetSource, sids, tr: TimeRange) -> xr.Dataset:
+def _fetch_daily(source: AemetSource, sids, tr: TimeRange | None) -> xr.Dataset:
+    # The ``start > end`` short-circuit in ``sync`` prevents non-hourly
+    # presets from reaching here with ``tr=None``; assert for clarity.
+    assert tr is not None
     return source.get_daily(sids, time=tr)
 
 
-def _fetch_hourly(source: AemetSource, sids, tr: TimeRange) -> xr.Dataset:
+def _fetch_hourly(source: AemetSource, sids, tr: TimeRange | None) -> xr.Dataset:
     # TimeRange is ignored — hourly endpoint is rolling.
     del tr
     return source.get_hourly(sids)
 
 
-def _fetch_monthly(source: AemetSource, sids, tr: TimeRange) -> xr.Dataset:
+def _fetch_monthly(source: AemetSource, sids, tr: TimeRange | None) -> xr.Dataset:
+    assert tr is not None
     return source.get_monthly(sids, time=tr)
 
 
-def _fetch_pollution(source: AemetSource, sids, tr: TimeRange) -> xr.Dataset:
+def _fetch_pollution(source: AemetSource, sids, tr: TimeRange | None) -> xr.Dataset:
+    assert tr is not None
     return source.get_pollution(sids, time=tr)
 
 
@@ -489,6 +499,11 @@ _FETCH_TABLE = {
     "aemet_monthly": _fetch_monthly,
     "aemet_pollution": _fetch_pollution,
 }
+
+
+# Presets whose fetchers ignore the requested ``TimeRange`` — always
+# call them, even when the same-day auto-resume makes ``start > end``.
+_TIME_INSENSITIVE_PRESETS: frozenset[str] = frozenset({"aemet_hourly"})
 
 
 _DEFAULT_START = {

@@ -540,7 +540,21 @@ class AemetSource(DataSource):
             futures = {pool.submit(fetch, sid): sid for sid in station_ids}
             for fut in as_completed(futures):
                 sid = futures[fut]
-                rows_per[sid] = fut.result() or []
+                # Match the per-chunk tolerance used by daily / monthly
+                # / pollution: a single station's missing payload
+                # shouldn't abort a many-station batch.
+                try:
+                    rows_per[sid] = fut.result() or []
+                except AemetNoDataError:
+                    rows_per[sid] = []
+                except (AemetAuthError, AemetRateLimitError):
+                    raise
+                except AemetError as exc:
+                    warnings.warn(
+                        f"AEMET normals failed for station {sid}: {exc}",
+                        stacklevel=2,
+                    )
+                    rows_per[sid] = []
         return _normals_to_dataset(rows_per, station_ids)
 
     def get_extremes(
@@ -568,7 +582,18 @@ class AemetSource(DataSource):
             futures = {pool.submit(fetch, sid): sid for sid in station_ids}
             for fut in as_completed(futures):
                 sid = futures[fut]
-                rows_per[sid] = fut.result() or []
+                try:
+                    rows_per[sid] = fut.result() or []
+                except AemetNoDataError:
+                    rows_per[sid] = []
+                except (AemetAuthError, AemetRateLimitError):
+                    raise
+                except AemetError as exc:
+                    warnings.warn(
+                        f"AEMET extremes failed for station {sid}: {exc}",
+                        stacklevel=2,
+                    )
+                    rows_per[sid] = []
         return _extremes_to_dataset(rows_per, station_ids, parameter)
 
     def get_pollution(
