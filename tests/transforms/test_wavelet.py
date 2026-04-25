@@ -11,7 +11,7 @@ import pytest
 import xarray as xr
 
 
-pywt = pytest.importorskip("pywt")
+pytest.importorskip("pywt")
 
 from xr_toolz.transforms import cwt, dwt
 

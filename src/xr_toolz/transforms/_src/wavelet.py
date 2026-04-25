@@ -15,7 +15,8 @@ import xarray as xr
 
 
 _WAVELET_INSTALL_HINT = (
-    "PyWavelets is required for xr_toolz.transforms.wavelet. "
+    "PyWavelets is required for wavelet transforms in `xr_toolz.transforms` "
+    "(for example, `from xr_toolz.transforms import cwt, dwt`). "
     "Install with `pip install xr_toolz[wavelets]` or "
     "`pip install PyWavelets>=1.4`."
 )

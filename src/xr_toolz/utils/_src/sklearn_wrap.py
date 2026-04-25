@@ -39,7 +39,6 @@ class _Meta:
     sample_dim: Hashable
     sample_coord: np.ndarray | None
     feature_dims: list[Hashable]
-    feature_coords: dict[Hashable, np.ndarray]
     feature_index: pd.MultiIndex | pd.Index | None
     attrs: dict[str, Any]
     name: Hashable | None
@@ -73,20 +72,12 @@ def _to_2d(da: xr.DataArray, sample_dim: Hashable) -> tuple[np.ndarray, _Meta]:
             sample_dim=sample_dim,
             sample_coord=sample_coord,
             feature_dims=[],
-            feature_coords={},
             feature_index=None,
             attrs=dict(da.attrs),
             name=da.name,
             n_features=1,
         )
         return arr, meta
-
-    feature_coords: dict[Hashable, np.ndarray] = {}
-    for d in feature_dims:
-        if d in da.coords:
-            feature_coords[d] = np.asarray(da[d].values)
-        else:
-            feature_coords[d] = np.arange(da.sizes[d])
 
     stacked = da.stack(__features__=feature_dims).transpose(sample_dim, "__features__")
     arr = np.asarray(stacked.values)
@@ -99,7 +90,6 @@ def _to_2d(da: xr.DataArray, sample_dim: Hashable) -> tuple[np.ndarray, _Meta]:
         sample_dim=sample_dim,
         sample_coord=sample_coord,
         feature_dims=list(feature_dims),
-        feature_coords=feature_coords,
         feature_index=feature_index,
         attrs=dict(da.attrs),
         name=da.name,
@@ -322,6 +312,22 @@ class XarrayEstimator(BaseEstimator):
             f"X must be xr.DataArray, xr.Dataset, or np.ndarray; got {type(x)}."
         )
 
+    def _prepare_y(
+        self,
+        y: xr.DataArray | xr.Dataset | np.ndarray | None,
+        sample_dim: Hashable | None,
+    ) -> np.ndarray | None:
+        """Marshal ``y`` to numpy. Errors clearly when ``x`` was numpy
+        (no ``sample_dim``) but ``y`` is an xarray object."""
+        if sample_dim is None and isinstance(y, xr.DataArray | xr.Dataset):
+            raise TypeError(
+                "When x is a NumPy array, y must also be a NumPy array or None; "
+                "xarray y requires a sample dimension carried on x."
+            )
+        if sample_dim is None:
+            return _prepare_y(y, "")
+        return _prepare_y(y, sample_dim)
+
     def _unstack(
         self,
         arr: np.ndarray,
@@ -349,9 +355,7 @@ class XarrayEstimator(BaseEstimator):
     ) -> XarrayEstimator:
         """Fit the wrapped estimator to ``x`` (and optional ``y``)."""
         arr, meta, sample_dim = self._stack(x)
-        y_np = (
-            _prepare_y(y, sample_dim) if sample_dim is not None else _prepare_y(y, "")
-        )
+        y_np = self._prepare_y(y, sample_dim)
         self.estimator_ = clone(self.estimator)
         self.estimator_.fit(arr, y_np, **kwargs)
         self._fitted_sample_dim_ = sample_dim
@@ -375,9 +379,7 @@ class XarrayEstimator(BaseEstimator):
     ) -> xr.DataArray | np.ndarray:
         """Fit then transform ``x``."""
         arr, meta, sample_dim = self._stack(x)
-        y_np = (
-            _prepare_y(y, sample_dim) if sample_dim is not None else _prepare_y(y, "")
-        )
+        y_np = self._prepare_y(y, sample_dim)
         self.estimator_ = clone(self.estimator)
         if hasattr(self.estimator_, "fit_transform"):
             out = self.estimator_.fit_transform(arr, y_np, **kwargs)
@@ -409,10 +411,24 @@ class XarrayEstimator(BaseEstimator):
         train_meta = self.__dict__.get("_fitted_meta_")
         if (
             isinstance(train_meta, _Meta)
+            and isinstance(meta, _Meta)
             and out.ndim == 2
             and out.shape[1] == train_meta.n_features
         ):
-            return _from_2d(out, train_meta, new_feature_dim=self.new_feature_dim)
+            # Recover the training feature grid (dims, coords, MultiIndex)
+            # but keep the *current* input's sample axis/coords — the
+            # caller may be inverse-transforming scores from a different
+            # sample period than the training set.
+            hybrid = _Meta(
+                sample_dim=meta.sample_dim,
+                sample_coord=meta.sample_coord,
+                feature_dims=train_meta.feature_dims,
+                feature_index=train_meta.feature_index,
+                attrs=train_meta.attrs,
+                name=train_meta.name,
+                n_features=train_meta.n_features,
+            )
+            return _from_2d(out, hybrid, new_feature_dim=self.new_feature_dim)
         return self._unstack(out, meta)
 
     def predict(
@@ -447,9 +463,7 @@ class XarrayEstimator(BaseEstimator):
         ``.score`` returns a Python float."""
         self._require_fitted()
         arr, _, sample_dim = self._stack(x)
-        y_np = (
-            _prepare_y(y, sample_dim) if sample_dim is not None else _prepare_y(y, "")
-        )
+        y_np = self._prepare_y(y, sample_dim)
         return float(self.estimator_.score(arr, y_np))
 
     # ---------- proxy + dunder --------------------------------------------

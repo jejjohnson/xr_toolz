@@ -12,7 +12,7 @@ Stateful estimators (PCA, EOF, ICA, NMF, KMeans) are returned as
 matching the sklearn API on N-D xarray inputs.
 """
 
-from xr_toolz.transforms._src.dct import dct, dst
+from xr_toolz.transforms._src.dct import dct, dst, idct, idst
 from xr_toolz.transforms._src.decompose import eof, ica, kmeans, nmf, pca
 from xr_toolz.transforms._src.fourier import (
     coherence,
@@ -35,6 +35,8 @@ __all__ = [
     "dwt",
     "eof",
     "ica",
+    "idct",
+    "idst",
     "isotropic_power_spectrum",
     "kmeans",
     "nmf",

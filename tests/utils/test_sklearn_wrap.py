@@ -84,6 +84,34 @@ def test_pca_inverse_transform_returns_grid(da_3d):
     assert recon.shape == da_3d.shape
 
 
+def test_pca_inverse_transform_uses_current_sample_coords(da_3d):
+    """Regression for PR-15 review: inverse-transforming scores from a
+    *different* sample period must stamp the new period's sample coords
+    onto the result, not the training period's. The training feature
+    grid (lat/lon) is reused; the sample axis comes from the input."""
+    est = XarrayEstimator(PCA(n_components=2), sample_dim="time")
+    est.fit(da_3d)
+    # Build a fresh score array on a new time axis (different timestamps,
+    # different length) and inverse-transform it.
+    new_time = pd.date_range("2030-06-01", periods=5, freq="1D")
+    rng = np.random.default_rng(7)
+    fake_scores = xr.DataArray(
+        rng.standard_normal((5, 2)),
+        dims=("time", "component"),
+        coords={"time": new_time, "component": np.arange(2)},
+    )
+    recon = est.inverse_transform(fake_scores)
+    # New sample coords carried through.
+    np.testing.assert_array_equal(
+        recon["time"].values.astype("datetime64[ns]"),
+        new_time.values.astype("datetime64[ns]"),
+    )
+    assert recon.sizes["time"] == 5
+    # Feature grid (lat/lon) recovered from the training meta.
+    assert set(recon.dims) == {"time", "lat", "lon"}
+    np.testing.assert_array_equal(recon["lat"].values, da_3d["lat"].values)
+
+
 def test_pca_attribute_passthrough(da_3d):
     wrap = XarrayEstimator(PCA(n_components=2), sample_dim="time")
     wrap.fit(da_3d)
@@ -161,6 +189,18 @@ def test_numpy_input_passes_through():
     out = wrap.fit_transform(arr)
     assert isinstance(out, np.ndarray)
     assert out.shape == arr.shape
+
+
+def test_numpy_x_with_xarray_y_raises_clear_error():
+    """When ``x`` is numpy there is no sample dim to align ``y`` against;
+    accepting an xarray ``y`` would either silently misalign or surface a
+    confusing ``sample_dim=''`` error from the marshaller."""
+    rng = np.random.default_rng(3)
+    x_np = rng.standard_normal((20, 4))
+    y_xr = xr.DataArray(rng.standard_normal(20), dims=("time",))
+    wrap = XarrayEstimator(LinearRegression())
+    with pytest.raises(TypeError, match="NumPy"):
+        wrap.fit(x_np, y_xr)
 
 
 # ---------- nan policy ----------------------------------------------------
