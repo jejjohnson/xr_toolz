@@ -131,6 +131,15 @@ def test_partial_single_sample_coord_raises():
         partial(da, "x", geometry="cartesian")
 
 
+def test_partial_zero_spacing_coord_raises():
+    """A degenerate coord where every sample is identical must fail
+    fast — otherwise we'd silently divide by zero in the FD kernel."""
+    x = np.zeros(5)
+    da = xr.DataArray(np.arange(5.0), dims=("x",), coords={"x": x}, name="f")
+    with pytest.raises(ValueError, match="zero spacing"):
+        partial(da, "x", geometry="cartesian")
+
+
 def test_unknown_geometry_raises():
     da = _polynomial()
     with pytest.raises(ValueError, match="Unknown geometry"):

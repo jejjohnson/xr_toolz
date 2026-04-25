@@ -212,8 +212,42 @@ def test_advection_sign_convention_matches_minus_u_dot_grad(ds_uv_grid):
 
 def test_advection_components_dims_mismatch_raises(ds_uv_grid):
     ds = ds_uv_grid.assign(c=lambda d: d["u"])
-    with pytest.raises(ValueError, match="must have the same length"):
-        advection(ds, scalar="c", components=("u",), dims=("lon", "lat"))
+    with pytest.raises(ValueError, match="exactly two components"):
+        advection(ds, scalar="c", components=("u",), dims=("lon",))
+
+
+def test_advection_rejects_non_horizontal_dim(ds_uv_grid):
+    """3-D advection isn't wired up yet — an explicit error beats a
+    confusing failure deep inside calc.partial."""
+    ds = ds_uv_grid.assign(c=lambda d: d["u"])
+    with pytest.raises(ValueError, match="lon/lat"):
+        advection(ds, scalar="c", components=("u", "v"), dims=("lon", "depth"))
+
+
+def test_shear_vorticity_zero_speed_returns_zero():
+    lon = np.linspace(-10.0, 10.0, 5)
+    lat = np.linspace(20.0, 40.0, 5)
+    zeros = np.zeros((5, 5))
+    ds = xr.Dataset(
+        {"u": (("lat", "lon"), zeros), "v": (("lat", "lon"), zeros)},
+        coords={"lon": lon, "lat": lat},
+    )
+    out = shear_vorticity(ds)
+    assert np.isfinite(out["vort_shear"].values).all()
+    np.testing.assert_array_equal(out["vort_shear"].values, 0.0)
+
+
+def test_curvature_vorticity_zero_speed_returns_zero():
+    lon = np.linspace(-10.0, 10.0, 5)
+    lat = np.linspace(20.0, 40.0, 5)
+    zeros = np.zeros((5, 5))
+    ds = xr.Dataset(
+        {"u": (("lat", "lon"), zeros), "v": (("lat", "lon"), zeros)},
+        coords={"lon": lon, "lat": lat},
+    )
+    out = curvature_vorticity(ds)
+    assert np.isfinite(out["vort_curv"].values).all()
+    np.testing.assert_array_equal(out["vort_curv"].values, 0.0)
 
 
 def test_ageostrophic_velocities_zero_for_purely_geostrophic_input(ds_ssh_grid):
@@ -422,9 +456,7 @@ def test_lapse_rate_positive_for_temperature_decreasing_upward():
 
 
 def test_lapse_rate_invalid_positive_raises():
-    ds = xr.Dataset(
-        {"T": (("depth",), np.zeros(3))}, coords={"depth": np.arange(3.0)}
-    )
+    ds = xr.Dataset({"T": (("depth",), np.zeros(3))}, coords={"depth": np.arange(3.0)})
     with pytest.raises(ValueError, match="must be 'down' or 'up'"):
         lapse_rate(ds, positive="sideways")
 

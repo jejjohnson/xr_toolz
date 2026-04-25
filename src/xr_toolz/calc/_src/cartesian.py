@@ -9,6 +9,7 @@ coordinate with constant spacing (within ``uniform_rtol``).
 
 from __future__ import annotations
 
+import threading
 from typing import Any, cast
 
 import finitediffx as fdx
@@ -24,6 +25,16 @@ import xarray as xr
 _fdx_difference: Any = cast(Any, fdx.difference)
 
 
+# JAX's ``jax_enable_x64`` flag is process-global. Concurrent calls to
+# :class:`_x64_scope` from multiple threads would otherwise race and
+# leave the flag in a wrong state for the duration of a peer's stencil
+# call. Serialising the toggle (and the kernel call within it) under a
+# module-level lock keeps each call's precision deterministic. The cost
+# is negligible — the lock is held only for the duration of one
+# ``fdx.difference`` invocation.
+_X64_LOCK = threading.Lock()
+
+
 class _x64_scope:
     """Toggle JAX's ``jax_enable_x64`` flag for the duration of a block.
 
@@ -31,22 +42,34 @@ class _x64_scope:
     silently downcasts and the user's float64 input gets a float32-quality
     answer. We flip the flag on entry only when we need it and restore it
     on exit so we don't pollute the surrounding JAX session.
+
+    Thread safety: enters under ``_X64_LOCK`` so concurrent callers can't
+    interleave their flag flips. Reentrant calls from the same thread are
+    not supported (use a single block per call).
     """
 
     def __init__(self, enable: bool) -> None:
         self._enable = enable
         self._prev: bool | None = None
+        self._held = False
 
     def __enter__(self) -> None:
         if not self._enable:
             return
+        _X64_LOCK.acquire()
+        self._held = True
         self._prev = bool(jax.config.read("jax_enable_x64"))
         if not self._prev:
             jax.config.update("jax_enable_x64", True)
 
     def __exit__(self, *exc: object) -> None:
-        if self._prev is False:
-            jax.config.update("jax_enable_x64", False)
+        try:
+            if self._prev is False:
+                jax.config.update("jax_enable_x64", False)
+        finally:
+            if self._held:
+                _X64_LOCK.release()
+                self._held = False
 
 
 def _difference(
@@ -85,6 +108,12 @@ def _uniform_step(coord: xr.DataArray, *, rtol: float = 1e-6) -> float:
         )
     diffs = np.diff(values)
     step = float(diffs[0])
+    if step == 0.0:
+        raise ValueError(
+            f"Coordinate {coord.name!r} has zero spacing — every sample is "
+            f"identical ({float(values[0])}). A finite-difference step is "
+            "undefined."
+        )
     if not np.allclose(diffs, step, rtol=rtol, atol=0.0):
         raise ValueError(
             f"Coordinate {coord.name!r} is not uniformly spaced "

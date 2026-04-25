@@ -56,8 +56,8 @@ def streamfunction(
 ) -> xr.Dataset:
     """Stream function from sea-surface height.
 
-    Uses the linear geostrophic approximation ``η = (g / f₀) ψ``, i.e.
-    ``ψ = (g / f₀) η``.
+    Uses the linear geostrophic approximation ``ψ = (g / f₀) η``, i.e.
+    ``η = (f₀ / g) ψ``.
 
     Args:
         ds: Dataset containing ``variable`` (SSH) and a ``lat`` coord.
@@ -281,10 +281,10 @@ def ageostrophic_velocities(
 def advection(
     ds: xr.Dataset,
     scalar: str,
-    components: tuple[str, ...] = ("u", "v"),
-    dims: tuple[str, ...] = ("lon", "lat"),
+    components: tuple[str, str] = ("u", "v"),
+    dims: tuple[str, str] = ("lon", "lat"),
 ) -> xr.Dataset:
-    """Tracer advection ``−u·∇c`` on the lon/lat sphere.
+    """Horizontal tracer advection ``−u·∇c`` on the lon/lat sphere.
 
     Sign convention follows :func:`metpy.calc.advection`: a positive
     value means the tracer is being increased at that point by the flow.
@@ -294,18 +294,33 @@ def advection(
             components.
         scalar: Name of the advected scalar field (e.g. ``"sst"``,
             ``"ssh"``).
-        components: Wind/current component variable names paired with
-            ``dims``.
-        dims: Spatial dimensions paired with the components. Pass
-            ``("lon", "lat", "depth")`` (or similar) for 3-D advection.
+        components: Two horizontal wind/current component variable names
+            paired with ``dims``.
+        dims: Two horizontal coordinate names — must be the lon and lat
+            dims so the spherical metric applies. Vertical advection
+            (``w ∂c/∂z``) belongs in a future ``atm`` thermodynamics
+            module that adds a vertical-coord geometry; for now this
+            function is strictly horizontal.
 
     Returns:
         Dataset with a single variable ``f"{scalar}_advection"``.
+
+    Raises:
+        ValueError: if ``components`` / ``dims`` are not 2-D, or if
+            ``dims`` includes anything outside ``("lon", "lat")``.
     """
-    if len(components) != len(dims):
+    if len(components) != 2 or len(dims) != 2:
         raise ValueError(
-            f"components ({len(components)}) and dims ({len(dims)}) "
-            "must have the same length."
+            "advection is 2-D (lon/lat); pass exactly two components and "
+            f"two dims, got components={components!r} dims={dims!r}."
+        )
+    invalid = [d for d in dims if d not in ("lon", "lat")]
+    if invalid:
+        raise ValueError(
+            f"advection currently supports only horizontal lon/lat "
+            f"dimensions; got invalid dim(s) {invalid!r}. Vertical "
+            "advection requires a vertical-coord geometry not yet "
+            "wired into xr_toolz.calc."
         )
     flux: xr.DataArray | None = None
     for comp_name, dim in zip(components, dims, strict=True):
@@ -344,8 +359,9 @@ def shear_vorticity(
         ζ_s = (v u ∂u/∂x + v² ∂v/∂x − u² ∂u/∂y − u v ∂v/∂y) / (u² + v²)
 
     The total relative vorticity decomposes as
-    ``ζ = shear_vorticity + curvature_vorticity`` (modulo divisions by
-    zero where the wind vanishes).
+    ``ζ = shear_vorticity + curvature_vorticity``. The decomposition
+    is undefined where the wind vanishes — calm points
+    (``u = v = 0``) are returned as ``0`` rather than NaN/Inf.
 
     Returns:
         Dataset with a single variable ``vort_shear``.
@@ -354,9 +370,9 @@ def shear_vorticity(
     vv = ds[v]
     dudx, dudy, dvdx, dvdy = _vector_derivatives(ds, u, v)
     speed_sq = uu**2 + vv**2
-    zeta_s = (vv * uu * dudx + vv * vv * dvdx - uu * uu * dudy - uu * vv * dvdy) / (
-        speed_sq
-    )
+    numerator = vv * uu * dudx + vv * vv * dvdx - uu * uu * dudy - uu * vv * dvdy
+    safe_speed_sq = speed_sq.where(speed_sq != 0.0, 1.0)
+    zeta_s = xr.where(speed_sq != 0.0, numerator / safe_speed_sq, 0.0)
     zeta_s.attrs.update(long_name="Shear Vorticity", standard_name="shear_vorticity")
     return zeta_s.rename(None).to_dataset(name="vort_shear")
 
@@ -372,6 +388,9 @@ def curvature_vorticity(
 
         ζ_c = (u² ∂v/∂x − v² ∂u/∂y − v u ∂u/∂x + u v ∂v/∂y) / (u² + v²)
 
+    Calm points (``u = v = 0``) are returned as ``0``, matching the
+    convention in :func:`shear_vorticity`.
+
     Returns:
         Dataset with a single variable ``vort_curv``.
     """
@@ -379,9 +398,9 @@ def curvature_vorticity(
     vv = ds[v]
     dudx, dudy, dvdx, dvdy = _vector_derivatives(ds, u, v)
     speed_sq = uu**2 + vv**2
-    zeta_c = (uu * uu * dvdx - vv * vv * dudy - vv * uu * dudx + uu * vv * dvdy) / (
-        speed_sq
-    )
+    numerator = uu * uu * dvdx - vv * vv * dudy - vv * uu * dudx + uu * vv * dvdy
+    safe_speed_sq = speed_sq.where(speed_sq != 0.0, 1.0)
+    zeta_c = xr.where(speed_sq != 0.0, numerator / safe_speed_sq, 0.0)
     zeta_c.attrs.update(
         long_name="Curvature Vorticity", standard_name="curvature_vorticity"
     )
