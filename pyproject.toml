@@ -59,6 +59,14 @@ cds-insitu = [
     "loguru>=0.7.3",
 ]
 
+# ``pip install xr_toolz[wavelets]`` — PyWavelets backend for the
+# continuous + discrete wavelet transforms in
+# :mod:`xr_toolz.transforms.wavelet`. Imported lazily; missing the extra
+# only breaks ``cwt`` / ``dwt``, not the rest of the transforms module.
+wavelets = [
+    "PyWavelets>=1.4",
+]
+
 [project.urls]
 Repository = "https://github.com/jejjohnson/xr_toolz"
 
