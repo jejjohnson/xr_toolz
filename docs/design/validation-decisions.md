@@ -183,7 +183,7 @@ Detecting an event and scoring an event forecast are different tasks. Marine hea
 
 ### Decision
 
-Put event definitions, detection, labeling, matching, and properties in `xr_toolz.phenomena`. Put scores such as POD, FAR, CSI, IoU, duration error, and intensity bias in `xr_toolz.metrics.object`.
+Put event definitions, detection, labeling, matching, and properties in `xr_toolz.phenomena`. Put scores such as `ProbabilityOfDetection` (POD), `FalseAlarmRatio` (FAR), `CriticalSuccessIndex` (CSI), `IntersectionOverUnion` (IoU), duration error, and intensity bias in `xr_toolz.metrics.object`.
 
 ### Consequences
 

@@ -3,6 +3,14 @@ status: draft
 version: 0.2.0
 ---
 
+!!! note "Module paths shown are proposed design targets"
+    The submodules referenced on this page (`xr_toolz.metrics.*`,
+    `xr_toolz.budgets`, `xr_toolz.phenomena`, `xr_toolz.lagrangian`,
+    `xr_toolz.viz.validation`, …) are **proposed** layouts and **are not part of
+    the current export surface**. Today, most domain-agnostic functionality
+    still lives under `xr_toolz.geo.*`. Treat the imports below as design-target
+    aliases; once the proposed modules ship, the snippets become copy/paste-ready.
+
 # Validation API Map
 
 This page maps scientific validation questions to the proposed `xr_toolz` API surface. It complements [`primitives.md`](primitives.md), [`components.md`](components.md), and the top-level [`validation.md`](../validation.md) design note.
@@ -26,13 +34,13 @@ Validation is broader than scalar metrics. A complete geoscience ML evaluation m
 | Are grid values accurate? | `xr_toolz.metrics.pixel` | `RMSE`, `MAE`, `Bias`, `Correlation`, `NashSutcliffe` |
 | Are scales resolved? | `xr_toolz.metrics.spectral`, `xr_toolz.metrics.multiscale` | `PSDScore`, `ResolvedScale`, `CoherenceSkill`, `PerScaleRMSE`, `WaveletRMSE` |
 | Does skill depend on forecast horizon? | `xr_toolz.metrics.forecast` | `SkillByLeadTime`, `RMSEByLead`, `AnomalyCorrelationByLead`, `SpectralSkillByLead` |
-| Does skill vary by region or regime? | `xr_toolz.metrics.scale`, `xr_toolz.geo.masks` | `EvaluateByRegion`, `FrequencyBandSkill`, `BandLimitedRMSE`, `AddRegionMask` |
+| Does skill vary by region or regime? | `xr_toolz.metrics.multiscale`, `xr_toolz.metrics.spectral`, `xr_toolz.geo.masks` | `EvaluateByRegion`, `FrequencyBandSkill`, `BandLimitedRMSE`, `AddRegionMask` |
 | Is an ensemble calibrated? | `xr_toolz.metrics.probabilistic` | `CRPS`, `SpreadSkillRatio`, `RankHistogram`, `EnsembleCoverage`, `ReliabilityCurve` |
 | Are structures displaced or blurred? | `xr_toolz.metrics.structural` | `SSIM`, `GradientDifference`, `PhaseShiftError`, `CentroidDisplacement` |
 | Are physical balances respected? | `xr_toolz.metrics.physical`, `xr_toolz.kinematics` | `GeostrophicBalanceError`, `DivergenceError`, `VorticityError`, `KineticEnergyError` |
 | Are budgets closed? | `xr_toolz.budgets` | `ControlVolumeIntegral`, `BoundaryFlux`, `HeatBudgetResidual`, `SaltBudgetResidual`, `VolumeBudgetResidual`, `KineticEnergyBudgetResidual` |
 | Is material transport realistic? | `xr_toolz.lagrangian`, `xr_toolz.metrics.lagrangian` | `AdvectParticles`, `PairDispersion`, `ResidenceTime`, `ConnectivityMatrix`, `FTLE`, `EndpointError` |
-| Are events captured? | `xr_toolz.phenomena`, `xr_toolz.metrics.object` | `DetectMarineHeatwaves`, `DetectEddies`, `DetectFronts`, `MatchObjects`, `POD`, `FAR`, `CSI`, `IoU` |
+| Are events captured? | `xr_toolz.phenomena`, `xr_toolz.metrics.object` | `DetectMarineHeatwaves`, `DetectEddies`, `DetectFronts`, `MatchObjects`, `ProbabilityOfDetection`, `FalseAlarmRatio`, `CriticalSuccessIndex`, `IntersectionOverUnion` |
 | Do diagnostics need plots? | `xr_toolz.viz.validation` | `ScaleSkillPanel`, `SpectralSkillPanel`, `LeadTimeSkillPanel`, `ProcessBudgetPanel`, `EventVerificationPanel` |
 
 ---
@@ -78,7 +86,8 @@ A model may have good global RMSE while underrepresenting high-wavenumber varian
 
 ```python
 from xr_toolz.metrics.forecast import SkillByLeadTime, RMSEByLead, AnomalyCorrelationByLead
-from xr_toolz.metrics.scale import EvaluateByRegion, FrequencyBandSkill
+from xr_toolz.metrics.multiscale import EvaluateByRegion
+from xr_toolz.metrics.spectral import FrequencyBandSkill
 from xr_toolz.metrics.spectral import PSDScore, ResolvedScale
 ```
 

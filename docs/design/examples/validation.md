@@ -3,6 +3,16 @@ status: draft
 version: 0.2.0
 ---
 
+!!! note "Module paths shown are proposed design targets"
+    The snippets below import from `xr_toolz.metrics.*`, `xr_toolz.budgets`,
+    `xr_toolz.phenomena`, and `xr_toolz.lagrangian` — submodules that **do not
+    exist in the current export surface**. Today, validators such as
+    `ValidateCoords` live under `xr_toolz.geo.operators` (not
+    `xr_toolz.geo.validation`), and metric primitives live under
+    `xr_toolz.geo.metrics`. Treat the imports below as design-target aliases;
+    once the modules ship, the snippets will be copy/paste-ready against the
+    proposed layout.
+
 # Validation Examples
 
 This page shows how the proposed validation framework composes field, spectral, lead-time, structural, process, Lagrangian, and phenomena-based diagnostics without removing any existing examples.
@@ -23,7 +33,7 @@ A model can perform well in global RMSE while losing small-scale variance or deg
 
 ```python
 from xr_toolz.core import Graph, Input
-from xr_toolz.geo.validation import ValidateCoords
+from xr_toolz.geo.operators import ValidateCoords  # current export path
 from xr_toolz.metrics import RMSE, PSDScore
 from xr_toolz.metrics.forecast import RMSEByLead
 ```

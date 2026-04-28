@@ -3,6 +3,14 @@ status: draft
 version: 0.2.0
 ---
 
+!!! note "Module paths shown are proposed design targets"
+    The snippets below import from `xr_toolz.budgets`, `xr_toolz.metrics.*`, and other
+    submodules that **do not exist in the current export surface** — the current
+    domain-agnostic functionality still lives under `xr_toolz.geo.*`. Treat these
+    imports as design-target aliases; once the modules ship the snippets become
+    copy/paste-ready, but until then map each `xr_toolz.<topic>` path to its
+    equivalent under today's `xr_toolz.geo.<topic>`.
+
 # Budget Validation Examples
 
 Budget validation checks whether predicted fields satisfy finite-volume conservation constraints. These diagnostics are especially useful for long autoregressive rollouts, coupled fields, and physically interpretable ML models.

@@ -52,7 +52,8 @@ geo_toolz/
 │   ├── lagrangian.md      # Particle and drifter-style transport diagnostics
 │   ├── budgets.md         # Heat/salt/volume/energy budget residual examples
 │   └── phenomena.md       # Event/object detection and verification examples
-└── decisions.md           # Design decisions with rationale
+├── decisions.md           # Design decisions D1–D10 (existing tradeoffs)
+└── validation-decisions.md # Design decisions D11–D15 (validation framework)
 ```
 
 ## Reading Order
@@ -64,4 +65,5 @@ geo_toolz/
 5. **[api/README.md](api/README.md)** — scan the surface
 6. **[api/primitives.md](api/primitives.md)** → **[components.md](api/components.md)** → **[models.md](api/models.md)** → **[validation.md](api/validation.md)** — drill into detail
 7. **[examples/primitives.md](examples/primitives.md)** → **[components.md](examples/components.md)** → **[models.md](examples/models.md)** → **[integration.md](examples/integration.md)** → **[validation.md](examples/validation.md)** — see it in action
-8. **[decisions.md](decisions.md)** — understand the tradeoffs
+8. **[decisions.md](decisions.md)** — D1–D10 architectural tradeoffs
+9. **[validation-decisions.md](validation-decisions.md)** — D11–D15 validation framework decisions

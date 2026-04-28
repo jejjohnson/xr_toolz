@@ -3,6 +3,14 @@ status: draft
 version: 0.2.0
 ---
 
+!!! note "Module paths shown are proposed design targets"
+    Throughout this page, paths such as `xr_toolz.metrics.*`, `xr_toolz.budgets`,
+    and `xr_toolz.phenomena` refer to **proposed** subpackages and **are not part
+    of the current export surface**. Most domain-agnostic functionality today
+    still lives under `xr_toolz.geo` (for example `xr_toolz.geo.operators`,
+    `xr_toolz.geo.metrics`). Treat the snippets below as architectural direction;
+    once the proposed modules ship, the imports become copy/paste-ready.
+
 # Validation Framework
 
 `xr_toolz` validation should be broader than a list of scalar metrics. The design goal is to make evaluation workflows diagnose whether geoscience ML models reproduce values, scales, uncertainty, geometry, transport, physical processes, budgets, and identifiable events.
@@ -68,7 +76,8 @@ class BandLimitedRMSE(Operator): ...
 from xr_toolz.core import Graph, Input
 from xr_toolz.metrics import RMSE
 from xr_toolz.metrics.forecast import SkillByLeadTime
-from xr_toolz.metrics.scale import EvaluateByRegion, FrequencyBandSkill
+from xr_toolz.metrics.multiscale import EvaluateByRegion
+from xr_toolz.metrics.spectral import FrequencyBandSkill
 
 pred = Input("prediction")
 ref = Input("reference")
