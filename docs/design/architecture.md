@@ -95,15 +95,15 @@ The composition layers above describe *how* operators stack. The type contract d
 |---|---|---|---|---|
 | **A — Array** | `xr_toolz.<module>.array` | array (numpy / JAX / numba-jitted / optionally CuPy) | array | `axis=` |
 | **B — Layer 0 xarray** | `xr_toolz.<module>` (private `_src/`) | `xr.DataArray` (single-variable) or `xr.Dataset` + variable selectors (multi-variable) | `xr.DataArray` or `xr.Dataset` | `dim=` |
-| **C — Layer 1 Operator** | `xr_toolz.<module>` | `xr.Dataset` (or two for multi-input) | `xr.Dataset` (terminal viz returns `matplotlib.Figure / Axes`, see D10) | constructor `variable=` / `dims=` |
+| **C — Layer 1 Operator** | `xr_toolz.<module>` | `xr.Dataset` (or two for multi-input) | `xr.Dataset` \| `xr.DataArray` \| scalar (terminal viz returns `matplotlib.Figure / Axes`, see D10) | constructor `variable=` / `dims=` |
 
 Rules:
 
 - Each tier delegates downward; logic is never duplicated. Tier B wraps Tier A; Tier C wraps Tier B.
 - Tier A is **pragmatic, not strictly Array API-compliant**: numpy is the default backend, with JAX / numba / CuPy variants added per-function as the math benefits. Some functions dispatch via `array_namespace(x)`; others are hand-authored backend-specific kernels. The library never imports JAX / CuPy at the top level — optional backends are imported lazily.
 - Tier B uses arity to disambiguate the input type: single-variable functions take `xr.DataArray`; multi-variable functions take `xr.Dataset` plus explicit variable selectors (`variable=`, `u_var=`, …).
-- Tier C is the only tier that `Sequential` and `Graph` ever see — composition is uniform across modules.
-- Modules whose math is inherently coord/attr-manipulation rather than arithmetic (e.g., `validation`, `crs`, `subset`, `masks`, most of `regrid` / `interpolation` / `discretize`) skip Tier A; their Tier B takes `xr.Dataset` directly.
+- Tier C input is always `xr.Dataset` (or two `xr.Dataset` for multi-input operators). Output is **usually** `xr.Dataset` for transformations that preserve the dataset shape, but reduction-style operators (e.g., metrics) may return an `xr.DataArray` or scalar, and terminal viz operators return `matplotlib.Figure / Axes` (D10). Composition (`Sequential`, `Graph`) only sees Tier C.
+- Modules whose math is inherently coord/attr-manipulation rather than arithmetic (`validation`, `crs`, `subset`, `masks`) skip Tier A; their Tier B takes `xr.Dataset` directly.
 
 Example — `metrics.rmse`:
 

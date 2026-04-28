@@ -26,9 +26,9 @@ version: 0.1.0
 
     - **Tier A — `<module>.array`** — array functions (numpy / JAX / numba / optionally CuPy). Take/return arrays. Use `axis=`.
     - **Tier B — Layer 0 xarray** — `xr.DataArray` for single-variable, `xr.Dataset` + variable selectors for multi-variable. Use `dim=`.
-    - **Tier C — Layer 1 Operator** — `Dataset → Dataset`. The only tier `Sequential` and `Graph` see.
+    - **Tier C — Layer 1 Operator** — input is `xr.Dataset` (or two for multi-input). Output is usually `xr.Dataset`, may narrow to `xr.DataArray` or scalar for reductions (e.g., metrics), or `matplotlib.Figure / Axes` for terminal viz (D10). The only tier `Sequential` and `Graph` see.
 
-    Modules whose math is inherently coord/attr-manipulation (`validation`, `crs`, `subset`, `masks`, `regrid`, `interpolation`, `discretize`) skip Tier A. See [architecture.md §Type Contract](../architecture.md) and [decisions.md §D11](../decisions.md).
+    Modules whose math is inherently coord/attr-manipulation (`validation`, `crs`, `subset`, `masks`) skip Tier A — Tier B takes `xr.Dataset` directly. Value-resampling functionality lives under `xr_toolz.interpolate` (D12), not separate `regrid` / `interpolation` / `discretize` modules. See [architecture.md §Type Contract](../architecture.md) and [decisions.md §D11](../decisions.md).
 
 # Components — Layer 1 Operators
 
@@ -138,8 +138,7 @@ xr_toolz/interpolate/
         coord_remap.py     # remap along any coord axis (vertical canonical, also temporal phase, …)
         resample.py        # time-axis resampling
         smooth.py          # along-axis denoising
-        downscale.py       # learned super-resolution via ModelOp
-        upscale.py         # learned aggregation via ModelOp
+        downscale.py       # learned super-resolution / aggregation via ModelOp (Downscale, Upscale)
 ```
 
 Modules outside `interpolate` that handle adjacent concerns:
@@ -411,7 +410,7 @@ def power_spectrum(da: xr.DataArray, *, dim: str, isotropic: bool = False, **kwa
 def cross_spectrum(da_a: xr.DataArray, da_b: xr.DataArray, *, dim: str, **kwargs) -> xr.DataArray: ...
 def coherence(da_a: xr.DataArray, da_b: xr.DataArray, *, dim: str, **kwargs) -> xr.DataArray: ...
 def stft(da: xr.DataArray, *, dim: str, window_size: int, hop: int, **kwargs) -> xr.DataArray: ...
-def drop_negative_frequencies[T: (xr.DataArray, xr.Dataset)](da: T, *, dims, drop: bool = True) -> T: ...
+def drop_negative_frequencies[T: xr.DataArray | xr.Dataset](da: T, *, dims, drop: bool = True) -> T: ...
 
 # Tier C — Operator (Dataset in, Dataset out)
 class PowerSpectrum(Operator):
@@ -769,11 +768,16 @@ Sub-organized by domain in one-file-per-domain layout:
 
 ```
 xr_toolz/kinematics/
-    array.py            # Tier A re-exports across all domains
+    array.py                  # Tier A re-exports across all domains
     _src/
-        array_ocean.py        atmosphere.py    array_atmosphere.py
-        array_atmosphere.py   ice.py           array_ice.py
-        ocean.py              remote.py        array_remote.py
+        ocean.py
+        array_ocean.py
+        atmosphere.py
+        array_atmosphere.py
+        ice.py
+        array_ice.py
+        remote.py
+        array_remote.py
 ```
 
 Each domain ships all three D11 tiers: array kernels (Tier A), Layer 0 xarray functions (Tier B), Operator wrappers (Tier C). The kinematics math is mostly arithmetic on field arrays — finite differences, dot products, ratios — so the array tier is meaningful for every public function.
