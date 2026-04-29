@@ -88,12 +88,35 @@ def test_sequential_get_config_roundtrip():
     }
 
 
-def test_sequential_describe_lists_steps():
+def test_sequential_describe_renders_tree():
     pipeline = Sequential([AddConst(1), AddConst(2)])
-    lines = pipeline.describe().splitlines()
-    assert lines[0].startswith("Sequential (2 steps):")
-    assert "[0] AddConst(const=1)" in lines[1]
-    assert "[1] AddConst(const=2)" in lines[2]
+    text = pipeline.describe()
+    assert text == "Sequential (2 ops)\n├── AddConst(const=1)\n└── AddConst(const=2)"
+
+
+def test_sequential_describe_handles_nested_pipelines():
+    inner = Sequential([AddConst(1), AddConst(2)])
+    outer = Sequential([inner, AddConst(10)])
+    text = outer.describe()
+    assert (
+        text == "Sequential (2 ops)\n"
+        "├── Sequential (2 ops)\n"
+        "│   ├── AddConst(const=1)\n"
+        "│   └── AddConst(const=2)\n"
+        "└── AddConst(const=10)"
+    )
+
+
+def test_sequential_describe_wraps_long_configs():
+    class WideOp(AddConst):
+        def get_config(self):
+            return {f"k{i}": "x" * 8 for i in range(6)}
+
+    pipeline = Sequential([WideOp(0)])
+    lines = pipeline.describe(max_width=40).splitlines()
+    assert lines[0] == "Sequential (1 ops)"
+    assert lines[1].startswith("└── WideOp(")
+    assert all(ln.startswith("    ") for ln in lines[2:])
 
 
 # --- Symbolic dispatch -------------------------------------------------------
