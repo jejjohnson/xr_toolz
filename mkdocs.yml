@@ -59,6 +59,21 @@ nav:
           - Components: design/examples/components.md
           - Models: design/examples/models.md
           - Integration: design/examples/integration.md
+  - Tutorials:
+      - Core:
+          - Operators & Pipelines: notebooks/operators_pipeline_demo.ipynb
+      - Data — CMEMS:
+          - SST Products: notebooks/cmems_sst_products.ipynb
+          - SSS Products: notebooks/cmems_sss_products.ipynb
+          - SSH Products: notebooks/cmems_ssh_products.ipynb
+          - Ocean Colour: notebooks/cmems_oc_products.ipynb
+      - Data — CDS In-situ:
+          - Surface Land: notebooks/cds_insitu_land_demo.ipynb
+          - Surface Marine: notebooks/cds_insitu_marine_demo.ipynb
+      - Data — AEMET:
+          - Smoke Demo: notebooks/aemet_smoke.ipynb
+          - Comunidad Valenciana: notebooks/aemet_valencia.ipynb
+          - National Climatology: notebooks/aemet_national.ipynb
   - API Reference: api/reference.md
   - Contributing: contributing.md
   - Changelog: CHANGELOG.md
