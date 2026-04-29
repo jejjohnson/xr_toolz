@@ -119,6 +119,35 @@ def test_sequential_describe_wraps_long_configs():
     assert all(ln.startswith("    ") for ln in lines[2:])
 
 
+def test_sequential_describe_closes_single_param_wrap():
+    """A wrapped one-field config must still emit the closing paren."""
+
+    class OneFieldOp(AddConst):
+        def get_config(self):
+            return {"only_field": "x" * 80}
+
+    pipeline = Sequential([OneFieldOp(0)])
+    text = pipeline.describe(max_width=40)
+    last = text.splitlines()[-1]
+    assert last.endswith(")"), f"missing close paren: {last!r}"
+
+
+def test_sequential_describe_passes_reduced_width_into_nested():
+    """Nested describe() must wrap against the remaining width, not the outer one."""
+
+    class WideOp(AddConst):
+        def get_config(self):
+            return {"a": "x" * 30, "b": "y" * 30}
+
+    inner = Sequential([WideOp(0)])
+    outer = Sequential([Sequential([Sequential([inner])])])
+    lines = outer.describe(max_width=80).splitlines()
+    # No produced line may exceed max_width (this includes branch prefixes).
+    assert all(len(ln) <= 80 for ln in lines), [
+        (len(ln), ln) for ln in lines if len(ln) > 80
+    ]
+
+
 # --- Symbolic dispatch -------------------------------------------------------
 
 

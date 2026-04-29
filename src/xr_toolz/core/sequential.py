@@ -51,14 +51,13 @@ class Sequential(Operator):
             is_last = i == n - 1
             branch = "└── " if is_last else "├── "
             cont = "    " if is_last else "│   "
+            inner_width = max_width - len(branch)
             if isinstance(op, Sequential):
-                child = op._describe_lines(max_width=max_width)
-                lines.append(branch + child[0])
-                lines.extend(cont + ln for ln in child[1:])
+                child = op._describe_lines(max_width=inner_width)
             else:
-                op_lines = _format_op(op, max_width=max_width - len(branch))
-                lines.append(branch + op_lines[0])
-                lines.extend(cont + ln for ln in op_lines[1:])
+                child = _format_op(op, max_width=inner_width)
+            lines.append(branch + child[0])
+            lines.extend(cont + ln for ln in child[1:])
         return lines
 
     def __repr__(self) -> str:
@@ -87,8 +86,10 @@ def _format_op(op: Operator, *, max_width: int) -> list[str]:
         return [one_line]
     indent = " " * (len(name) + 1)
     head = f"{name}("
-    body = [head + parts[0] + ("," if len(parts) > 1 else "")]
-    for j, part in enumerate(parts[1:], start=1):
-        suffix = "," if j < len(parts) - 1 else ")"
-        body.append(indent + part + suffix)
+    last = len(parts) - 1
+    body = []
+    for j, part in enumerate(parts):
+        prefix = head if j == 0 else indent
+        suffix = ")" if j == last else ","
+        body.append(prefix + part + suffix)
     return body
