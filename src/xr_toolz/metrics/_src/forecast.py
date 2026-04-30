@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import xarray as xr
 
 from xr_toolz.core import Operator
@@ -50,8 +51,24 @@ def skill_by_lead_time(
         )
 
     leads = ds_pred[lead_dim].values
-    pieces: list[xr.DataArray | xr.Dataset] = []
     ref_has_lead = lead_dim in ds_ref.dims
+    if ref_has_lead:
+        if ds_ref.sizes[lead_dim] != ds_pred.sizes[lead_dim]:
+            raise ValueError(
+                f"Reference {lead_dim!r} size {ds_ref.sizes[lead_dim]} does "
+                f"not match prediction size {ds_pred.sizes[lead_dim]}."
+            )
+        if (
+            lead_dim in ds_ref.coords
+            and lead_dim in ds_pred.coords
+            and not np.array_equal(ds_ref[lead_dim].values, leads)
+        ):
+            raise ValueError(
+                f"Reference {lead_dim!r} coordinate values differ from "
+                f"prediction; align them with `xr.align(...)` upstream."
+            )
+
+    pieces: list[xr.DataArray | xr.Dataset] = []
     for i in range(len(leads)):
         pred_i = ds_pred.isel({lead_dim: i})
         ref_i = ds_ref.isel({lead_dim: i}) if ref_has_lead else ds_ref

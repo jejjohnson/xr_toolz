@@ -214,14 +214,11 @@ def test_normalize_regions_dict_round_trip(
     assert set(np.unique(mask.values).tolist()) == {0, 1}
 
 
-def test_evaluate_by_region_regionmask_lazy_import_error() -> None:
-    """Passing an unknown object that isn't a regionmask.Regions raises TypeError,
-    not ImportError — the regionmask import only fires for objects that
-    look like regionmask.Regions."""
+def test_evaluate_by_region_regionmask_happy_path() -> None:
+    """A regionmask.Regions input is normalized via the regionmask backend."""
     pytest.importorskip("regionmask")
     import regionmask
 
-    # Build a tiny custom Regions instance.
     regions = regionmask.Regions(
         outlines=[np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])],
         names=["square"],
@@ -242,6 +239,97 @@ def test_evaluate_by_region_regionmask_lazy_import_error() -> None:
     out = op(ds_p, ds_r)
     assert "region" in out.dims
     assert "square" in out["region"].values.tolist()
+
+
+def test_normalize_regions_unsupported_type_does_not_import_regionmask(
+    monkeypatch,
+) -> None:
+    """Unsupported `regions` types raise TypeError without importing regionmask.
+
+    Guards the lazy-import contract: only `regionmask.Regions` instances
+    cause `regionmask` to be imported. Anything else must raise TypeError
+    immediately (so missing-regionmask environments still get a useful
+    error, not an ImportError).
+    """
+    import builtins
+
+    real_import = builtins.__import__
+
+    def blocked_import(name, *args, **kwargs):
+        if name == "regionmask":
+            raise ImportError("regionmask blocked for this test")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked_import)
+    ds = xr.Dataset({"x": (("t",), np.zeros(3))})
+    with pytest.raises(TypeError, match="Unsupported regions type"):
+        normalize_regions(42, ds)
+
+
+def test_normalize_regions_float_mask_with_nans() -> None:
+    """A float mask with NaN outside-region values is supported."""
+    rng = np.random.default_rng(20)
+    coords = {"lat": np.arange(6), "lon": np.arange(8)}
+    vals = np.full((6, 8), np.nan)
+    vals[:3, :] = 0.0  # region 0
+    vals[3:, :] = 1.0  # region 1
+    mask = xr.DataArray(vals, dims=("lat", "lon"), coords=coords)
+    int_mask, names = normalize_regions(mask, None)
+    assert int_mask.dtype == np.int64
+    assert names == {0: "region_0", 1: "region_1"}
+    # NaN positions become -1.
+    assert not (int_mask.values == -1).any()  # no NaNs in this fixture
+    # Regression: make sure NaN-containing input doesn't blow up.
+    vals_with_holes = vals.copy()
+    vals_with_holes[0, 0] = np.nan
+    mask2 = xr.DataArray(vals_with_holes, dims=("lat", "lon"), coords=coords)
+    int_mask2, _ = normalize_regions(mask2, None)
+    assert int(int_mask2.sel(lat=0, lon=0).values) == -1
+    # And EvaluateByRegion runs with the float-NaN mask end-to-end.
+    rng2 = rng
+    ds_p = xr.Dataset(
+        {"x": (("lat", "lon"), rng2.standard_normal((6, 8)))}, coords=coords
+    )
+    ds_r = xr.Dataset(
+        {"x": (("lat", "lon"), rng2.standard_normal((6, 8)))}, coords=coords
+    )
+    out = EvaluateByRegion(RMSE("x", ("lat", "lon")), regions=mask2)(ds_p, ds_r)
+    assert "region" in out.dims
+
+
+def test_normalize_regions_float_mask_rejects_non_integer_labels() -> None:
+    coords = {"lat": np.arange(4)}
+    mask = xr.DataArray(np.array([0.5, 0.5, 1.0, 1.0]), dims="lat", coords=coords)
+    with pytest.raises(ValueError, match="whole numbers"):
+        normalize_regions(mask, None)
+
+
+def test_skill_by_lead_time_ref_size_mismatch_raises() -> None:
+    rng = np.random.default_rng(21)
+    ds_p = xr.Dataset(
+        {"x": (("lead_time", "t"), rng.standard_normal((4, 5)))},
+        coords={"lead_time": np.arange(4), "t": np.arange(5)},
+    )
+    ds_r = xr.Dataset(
+        {"x": (("lead_time", "t"), rng.standard_normal((3, 5)))},
+        coords={"lead_time": np.arange(3), "t": np.arange(5)},
+    )
+    with pytest.raises(ValueError, match="size"):
+        SkillByLeadTime(RMSE("x", "t"))(ds_p, ds_r)
+
+
+def test_skill_by_lead_time_ref_coords_differ_raises() -> None:
+    rng = np.random.default_rng(22)
+    ds_p = xr.Dataset(
+        {"x": (("lead_time", "t"), rng.standard_normal((4, 5)))},
+        coords={"lead_time": np.arange(4), "t": np.arange(5)},
+    )
+    ds_r = xr.Dataset(
+        {"x": (("lead_time", "t"), rng.standard_normal((4, 5)))},
+        coords={"lead_time": np.arange(10, 14), "t": np.arange(5)},
+    )
+    with pytest.raises(ValueError, match="coordinate values"):
+        SkillByLeadTime(RMSE("x", "t"))(ds_p, ds_r)
 
 
 def test_evaluate_by_region_get_config_json_safe(
