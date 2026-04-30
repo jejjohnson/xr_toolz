@@ -3,13 +3,18 @@ status: draft
 version: 0.2.0
 ---
 
-!!! note "Module paths shown are proposed design targets"
-    The submodules referenced on this page (`xr_toolz.metrics.*`,
-    `xr_toolz.budgets`, `xr_toolz.phenomena`, `xr_toolz.lagrangian`,
-    `xr_toolz.viz.validation`, …) are **proposed** layouts and **are not part of
-    the current export surface**. Today, most domain-agnostic functionality
-    still lives under `xr_toolz.geo.*`. Treat the imports below as design-target
-    aliases; once the proposed modules ship, the snippets become copy/paste-ready.
+!!! note "Module paths shown — partially shipped"
+    `xr_toolz.metrics` ships today with **`pixel` and `spectral` populated**
+    (the pointwise and PSD-score classes referenced below — `RMSE`, `MAE`,
+    `Bias`, `Correlation`, `R2Score`, `MSE`, `NRMSE`, `PSDScore` — are real
+    and importable). The other `xr_toolz.metrics.*` submodules
+    (`forecast`, `multiscale`, `structural`, `probabilistic`,
+    `distributional`, `masked`, `lagrangian`, `physical`, `object`) are
+    **importable but empty**; the named classes inside them are
+    proposed and land with their respective view epics. The packages
+    `xr_toolz.budgets`, `xr_toolz.phenomena`, `xr_toolz.lagrangian`, and
+    `xr_toolz.viz.validation` are still proposed layouts and not yet on
+    the export surface.
 
 # Validation API Map
 
