@@ -155,11 +155,20 @@ class ModelOp(Operator):
                 "back onto the input's sample dims."
             )
 
+        sample_dims_set = set(sample_dims)
+        # Carry through any coord (dim or auxiliary, e.g. lat(sample),
+        # station_id(time, sample)) whose dims are entirely sample dims.
+        # The feature dim and anything that depends on it are dropped.
+        coords = {
+            name: coord
+            for name, coord in da.coords.items()
+            if set(coord.dims).issubset(sample_dims_set)
+        }
+
         if y.ndim == 1:
             target_shape = sample_shape if sample_shape else (1,)
             arr = y.reshape(target_shape)
             dims = sample_dims if sample_dims else ("sample",)
-            coords = {d: da.coords[d] for d in sample_dims if d in da.coords}
             return xr.DataArray(
                 arr,
                 dims=dims,
@@ -179,7 +188,6 @@ class ModelOp(Operator):
                 self.output_dim,
             )
         )
-        coords = {d: da.coords[d] for d in sample_dims if d in da.coords}
         return xr.DataArray(
             arr,
             dims=dims,

@@ -132,6 +132,45 @@ def test_attrs_are_preserved(da_2d: xr.DataArray) -> None:
     assert out.attrs.get("long_name") == "surface temperature"
 
 
+def test_auxiliary_sample_coords_preserved() -> None:
+    rng = np.random.default_rng(7)
+    da = xr.DataArray(
+        rng.standard_normal((5, 3)),
+        dims=("station", "feature"),
+        coords={
+            "station": np.arange(5),
+            "feature": ["a", "b", "c"],
+            "lat": ("station", np.linspace(40.0, 42.0, 5)),
+            "station_id": ("station", [f"S{i}" for i in range(5)]),
+        },
+    )
+    op = ModelOp(_DummyModel())
+    out = op(da)
+    assert "lat" in out.coords
+    assert "station_id" in out.coords
+    np.testing.assert_allclose(out.coords["lat"].values, da.coords["lat"].values)
+    # The feature-dim coord should NOT carry through.
+    assert "feature" not in out.coords
+
+
+def test_auxiliary_multi_dim_coords_preserved() -> None:
+    rng = np.random.default_rng(8)
+    da = xr.DataArray(
+        rng.standard_normal((2, 4, 3)),
+        dims=("time", "station", "feature"),
+        coords={
+            "time": np.arange(2),
+            "station": np.arange(4),
+            "feature": ["a", "b", "c"],
+            "obs_id": (("time", "station"), np.arange(8).reshape(2, 4)),
+        },
+    )
+    op = ModelOp(_DummyModel())
+    out = op(da)
+    assert "obs_id" in out.coords
+    assert out.coords["obs_id"].dims == ("time", "station")
+
+
 def test_raw_1d_array_rejected() -> None:
     op = ModelOp(_DummyModel())
     with pytest.raises(ValueError, match="2-D"):
