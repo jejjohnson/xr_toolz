@@ -4,17 +4,26 @@ version: 0.2.0
 ---
 
 !!! note "Module paths shown — partially shipped"
-    `xr_toolz.metrics` ships today with **`pixel` and `spectral` populated**
-    (the pointwise and PSD-score classes referenced below — `RMSE`, `MAE`,
-    `Bias`, `Correlation`, `R2Score`, `MSE`, `NRMSE`, `PSDScore` — are real
-    and importable). The other `xr_toolz.metrics.*` submodules
-    (`forecast`, `multiscale`, `structural`, `probabilistic`,
-    `distributional`, `masked`, `lagrangian`, `physical`, `object`) are
-    **importable but empty**; the named classes inside them are
-    proposed and land with their respective view epics. The packages
-    `xr_toolz.budgets`, `xr_toolz.phenomena`, `xr_toolz.lagrangian`, and
-    `xr_toolz.viz.validation` are still proposed layouts and not yet on
-    the export surface.
+    Only the following names are real and importable today:
+
+    - **`xr_toolz.metrics.pixel`** — `mse`, `rmse`, `nrmse`, `mae`, `bias`,
+      `correlation`, `r2_score`, plus `MSE`, `RMSE`, `NRMSE`, `MAE`,
+      `Bias`, `Correlation`, `R2Score`.
+    - **`xr_toolz.metrics.spectral`** — `psd_error`, `psd_score`,
+      `resolved_scale`, `find_intercept_1D`, plus `PSDScore`.
+
+    Every other class referenced on this page (`NashSutcliffe`,
+    `ResolvedScale`, `SkillByLeadTime`, `RMSEByLead`, `EvaluateByRegion`,
+    `FrequencyBandSkill`, `CRPS`, `SSIM`, `GeostrophicBalanceError`,
+    detectors, panels, …) is a **design target** that lands with its
+    respective view epic. The taxonomy submodules (`forecast`,
+    `multiscale`, `structural`, `probabilistic`, `distributional`,
+    `masked`, `lagrangian`, `physical`, `object`) are importable today
+    but empty — `from xr_toolz.metrics.forecast import RMSEByLead` will
+    succeed at the module import but fail on the symbol. Sibling
+    packages `xr_toolz.budgets`, `xr_toolz.phenomena`,
+    `xr_toolz.lagrangian`, and `xr_toolz.viz.validation` are still
+    proposed layouts and not yet on the export surface.
 
 # Validation API Map
 
