@@ -30,8 +30,8 @@ def heat_budget_residual(
     Args:
         ds: Dataset with potential temperature + velocities.
         temp_var, u_var, v_var, w_var: Variable names. ``w_var=None``
-            falls back to surface-only horizontal advection — log a
-            note that the vertical term is omitted.
+            silently skips the vertical-advection term — the residual
+            is then a surface-only diagnostic.
         surface_flux_var: Optional source field on the surface plane.
         time_dim: Name of the time coordinate.
         lat, lon: Names of horizontal coords (degrees).

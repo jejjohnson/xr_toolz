@@ -33,12 +33,24 @@ def _flux_divergence(
     lon: str,
     depth: str | None,
 ) -> xr.DataArray:
-    """``∇·(u φ)`` using spherical horizontal + rectilinear vertical."""
-    flux_u = u * tracer
-    flux_v = v * tracer
-    div = calc.partial(
-        flux_u, lon, geometry="spherical", lon=lon, lat=lat
-    ) + calc.partial(flux_v, lat, geometry="spherical", lon=lon, lat=lat)
+    """``∇·(u φ)`` with spherical curvature + rectilinear vertical.
+
+    Uses :func:`xr_toolz.calc.divergence` for the horizontal part so the
+    ``-(F_y tan φ)/R`` curvature correction is included; otherwise
+    spatially uniform meridional fluxes would generate a spurious
+    residual on lon/lat grids.
+    """
+    flux_u = (u * tracer).rename("flux_u")
+    flux_v = (v * tracer).rename("flux_v")
+    flux_ds = xr.Dataset({"flux_u": flux_u, "flux_v": flux_v})
+    div = calc.divergence(
+        flux_ds,
+        ("flux_u", "flux_v"),
+        dims=(lon, lat),
+        geometry="spherical",
+        lon=lon,
+        lat=lat,
+    )
     if w is not None and depth is not None and depth in tracer.dims:
         flux_w = w * tracer
         div = div + calc.partial(flux_w, depth, geometry="rectilinear")

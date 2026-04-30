@@ -11,10 +11,21 @@ Two layers, mirroring the rest of xr_toolz:
 - **Layer 1** — :class:`Operator` wrappers under
   :mod:`xr_toolz.budgets.operators`.
 
-All operators take grid metrics as **explicit constructor arguments**
-(see V4.4 / D16). Use :func:`xr_toolz.calc.grid_metrics_from_coords` to
-derive ``volume_metrics`` / ``face_metrics`` from a Dataset's coords if
-the model output does not already ship them.
+**Integral / volume-weighted operators** (:class:`ControlVolumeIntegral`,
+:class:`BoundaryFlux`) require explicit ``volume_metrics`` /
+``face_metrics`` constructor arguments — never auto-derived (V4.4 / D16).
+Use :func:`xr_toolz.calc.grid_metrics_from_coords` to build them from
+a Dataset's coords if the model output does not already ship them.
+
+**Per-cell residual operators** (:class:`HeatBudgetResidual`,
+:class:`SaltBudgetResidual`, :class:`VolumeBudgetResidual`,
+:class:`KineticEnergyBudgetResidual`) return a per-cell residual field
+``∂φ/∂t + ∇·(u φ) − sources``. They use the spherical-metric
+divergence from :mod:`xr_toolz.calc`, which derives the differential
+metric (``R cos φ``) from coordinates — they do **not** consume the
+``volume_metrics`` / ``face_metrics`` Datasets. Multiply the residual
+by ``cell_volume`` and integrate with :class:`ControlVolumeIntegral`
+if you need a control-volume-integrated closure.
 """
 
 from xr_toolz.budgets._src.flux import boundary_flux

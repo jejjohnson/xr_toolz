@@ -697,7 +697,7 @@ def density_from_ts(
     *,
     salinity: str = "so",
     temperature: str = "thetao",
-    pressure: str | float = 0.0,
+    pressure: str | float | xr.DataArray = 0.0,
     lon: str = "lon",
     lat: str = "lat",
     eos: str = "teos10",
@@ -709,8 +709,12 @@ def density_from_ts(
             potential temperature ``temperature`` (°C).
         salinity, temperature: Variable names.
         pressure: Sea pressure in dbar — either a variable name in
-            ``ds`` or a scalar (default ``0.0`` for surface density).
-        lon, lat: Coordinate names used by ``gsw.SA_from_SP``.
+            ``ds``, a scalar (default ``0.0`` for surface density), or
+            an :class:`xr.DataArray` that broadcasts against the
+            salinity field.
+        lon, lat: Coordinate names used by ``gsw.SA_from_SP``. The
+            coords may be 1-D; they are broadcast to the salinity
+            shape before calling :mod:`gsw`.
         eos: ``"teos10"`` (default, via :mod:`gsw`). Reserved for future
             ``"linear"`` / ``"jmd"`` alternatives.
 
@@ -721,11 +725,6 @@ def density_from_ts(
         ImportError: If :mod:`gsw` is not installed (it is an optional
             extra; install via ``pip install xr_toolz[oceanography]``
             or ``pip install gsw``).
-
-    Notes:
-        TEOS-10 is the only implemented equation of state. Pass
-        ``pressure=ds["pres"]`` to use a depth-dependent pressure
-        field; otherwise the surface approximation ``p = 0`` is used.
     """
     if eos != "teos10":
         raise NotImplementedError(
@@ -744,13 +743,21 @@ def density_from_ts(
 
     sp = ds[salinity]
     pt = ds[temperature]
-    p = ds[pressure] if isinstance(pressure, str) else pressure
+    if isinstance(pressure, str):
+        p_input: float | xr.DataArray = ds[pressure]
+    else:
+        p_input = pressure
     lon_da = ds[lon]
     lat_da = ds[lat]
-    sa = gsw.SA_from_SP(sp, p, lon_da, lat_da)
+    sp_b, lon_b, lat_b = xr.broadcast(sp, lon_da, lat_da)
+    if isinstance(p_input, xr.DataArray):
+        sp_b, p_b = xr.broadcast(sp_b, p_input)
+    else:
+        p_b = p_input
+    sa = gsw.SA_from_SP(sp_b, p_b, lon_b, lat_b)
     ct = gsw.CT_from_pt(sa, pt)
-    rho = gsw.rho(sa, ct, p)
-    rho_da = xr.DataArray(rho, coords=sp.coords, dims=sp.dims, name="rho")
+    rho = gsw.rho(sa, ct, p_b)
+    rho_da = xr.DataArray(rho, coords=sp_b.coords, dims=sp_b.dims, name="rho")
     rho_da.attrs.update(
         long_name="In-situ Seawater Density (TEOS-10)",
         standard_name="sea_water_density",

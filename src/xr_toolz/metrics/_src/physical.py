@@ -78,7 +78,7 @@ def geostrophic_balance_error(
     v = ds[v_var]
     f = coriolis_parameter(ds[lat])
 
-    grads = calc.gradient(eta, dims=(lon, lat), geometry="spherical")
+    grads = calc.gradient(eta, dims=(lon, lat), geometry="spherical", lon=lon, lat=lat)
     deta_dx = grads[f"d{eta.name}_dx"]
     deta_dy = grads[f"d{eta.name}_dy"]
 
@@ -98,17 +98,22 @@ def divergence_error(
     lat: str = "lat",
     lon: str = "lon",
 ) -> xr.DataArray:
-    """Surface horizontal divergence ``∂u/∂x + ∂v/∂y``.
+    """Surface horizontal divergence ``∇·u`` with spherical curvature.
 
     For a purely geostrophic flow this is ≈ 0; values away from zero
-    indicate either ageostrophic flow or numerical noise.
+    indicate either ageostrophic flow or numerical noise. Uses
+    :func:`xr_toolz.calc.divergence` so the curvature term is included.
     """
-    u = ds[u_var]
-    v = ds[v_var]
-    du_dx = calc.partial(u, lon, geometry="spherical", lon=lon, lat=lat)
-    dv_dy = calc.partial(v, lat, geometry="spherical", lon=lon, lat=lat)
-    div = (du_dx + dv_dy).rename("divergence")
-    return div
+    flow = ds[[u_var, v_var]]
+    div = calc.divergence(
+        flow,
+        (u_var, v_var),
+        dims=(lon, lat),
+        geometry="spherical",
+        lon=lon,
+        lat=lat,
+    )
+    return div.rename("divergence")
 
 
 # ---------- Layer-0: density inversion -----------------------------------
@@ -120,7 +125,11 @@ def density_inversion_fraction(
     density_var: str = "rho",
     depth_dim: str = "depth",
 ) -> xr.DataArray:
-    """Fraction of cells where density decreases with depth.
+    """Fraction of inversion cells, averaged over all input dims.
+
+    Counts ``∂ρ/∂z < 0`` along ``depth_dim`` then averages the
+    Boolean mask over **every** dim of the difference field
+    (including ``depth_dim``), returning a scalar.
 
     Args:
         ds: Dataset with ``density_var`` on a vertical axis.
@@ -130,8 +139,7 @@ def density_inversion_fraction(
             with ``∂ρ/∂z < 0``.
 
     Returns:
-        Scalar :class:`xr.DataArray` in ``[0, 1]`` averaged over the
-        non-vertical dims.
+        Scalar :class:`xr.DataArray` in ``[0, 1]``.
     """
     rho = ds[density_var]
     if depth_dim not in rho.dims:

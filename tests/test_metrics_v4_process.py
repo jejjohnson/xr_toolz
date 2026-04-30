@@ -368,9 +368,10 @@ def test_boundary_flux_operator_returns_dataset():
 
 
 def test_budget_residual_closes_for_known_balance():
+    # Convention: residual = tendency + flux_divergence - source + sink
     tendency = xr.DataArray(np.array([1.0, 2.0, 3.0]), dims=("x",))
     flux_div = xr.DataArray(np.array([0.5, 1.0, 1.5]), dims=("x",))
-    source = xr.DataArray(np.array([0.5, 1.0, 1.5]), dims=("x",))
+    source = xr.DataArray(np.array([1.5, 3.0, 4.5]), dims=("x",))
     res = budget_residual(tendency, flux_div, source=source)
     np.testing.assert_allclose(res.values, 0.0, atol=1e-12)
 

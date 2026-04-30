@@ -288,7 +288,9 @@ Conservation-budget operators (V4.2 / V4.3) need cell areas, widths, and volumes
 
 ### Decision
 
-Budget primitives and residual operators **must** accept `volume_metrics` and `face_metrics` as constructor arguments — they never auto-derive metrics from coordinates. A user who wants spherical metrics from lon/lat coords calls `xr_toolz.calc.grid_metrics_from_coords` first to produce the metric Datasets. Models that already ship explicit grid metrics (CMEMS NEMO output, MOM6 horizontal grids) bypass the helper and pass the model's own metric Dataset.
+**Integral / volume-weighted budget operators** — `ControlVolumeIntegral`, `BoundaryFlux`, and any future per-region closure operator that consumes `cell_volume` / face areas — **must** accept `volume_metrics` and `face_metrics` as constructor arguments. They never auto-derive cell volumes / face areas from coordinates. A user who wants spherical metrics from lon/lat coords calls `xr_toolz.calc.grid_metrics_from_coords` first to produce the metric Datasets. Models that already ship explicit grid metrics (CMEMS NEMO output, MOM6 horizontal grids) bypass the helper and pass the model's own metric Dataset.
+
+**Per-cell residual operators** — `HeatBudgetResidual`, `SaltBudgetResidual`, `VolumeBudgetResidual`, `KineticEnergyBudgetResidual` — return the field ``∂φ/∂t + ∇·(u φ) − sources`` on the same grid as the input. These do not need cell volumes or face areas: the spherical-metric divergence ``∇·`` only requires the differential metric ``R cos φ``, which `xr_toolz.calc.divergence` derives from coordinates inside `_src.spherical`. Volume-integrated closure (residuals weighted by `cell_volume` and summed over a control volume) goes through `ControlVolumeIntegral`, which is where explicit metrics re-enter the pipeline.
 
 ### Consequences
 

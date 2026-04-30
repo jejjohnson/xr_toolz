@@ -64,9 +64,11 @@ def grid_metrics_from_coords(
         ds: Dataset whose coordinates define the grid.
         lat, lon: Names of latitude / longitude coordinates. Spherical
             mode assumes degrees.
-        depth: Optional vertical coordinate name. If ``None``, the
-            returned metrics are 2-D (no ``dz`` / ``cell_volume``;
-            ``cell_volume`` is set equal to ``cell_area``).
+        depth: Optional vertical coordinate name. If ``None``, ``dz``
+            is omitted from ``volume_metrics`` and ``cell_volume`` is
+            populated with the 2-D ``cell_area`` (in m², not m³) so
+            downstream code that always reads ``cell_volume`` keeps
+            working in 2-D mode.
         sphere: If ``True`` (default), apply spherical metric
             ``dx = R cos(φ) Δλ``, ``dy = R Δφ`` with degrees-to-radians
             conversion. If ``False``, treat ``lon``/``lat`` as Cartesian

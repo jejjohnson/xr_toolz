@@ -22,15 +22,20 @@ def volume_budget_residual(
     lon: str = "lon",
     depth: str | None = "depth",
 ) -> xr.DataArray:
-    """``∂u/∂x + ∂v/∂y (+ ∂w/∂z)``.
+    """``∇·u`` with spherical curvature ``+ ∂w/∂z`` if ``w_var`` is given.
 
     Closes to ≈ 0 for an incompressible flow. ``w_var=None`` returns
-    the surface 2-D divergence only.
+    the surface 2-D divergence only. Uses :func:`xr_toolz.calc.divergence`
+    so the spherical curvature term is included.
     """
-    u = ds[u_var]
-    v = ds[v_var]
-    div = calc.partial(u, lon, geometry="spherical", lon=lon, lat=lat) + calc.partial(
-        v, lat, geometry="spherical", lon=lon, lat=lat
+    flow = ds[[u_var, v_var]]
+    div = calc.divergence(
+        flow,
+        (u_var, v_var),
+        dims=(lon, lat),
+        geometry="spherical",
+        lon=lon,
+        lat=lat,
     )
     if w_var is not None and depth is not None and depth in ds[w_var].dims:
         div = div + calc.partial(ds[w_var], depth, geometry="rectilinear")
