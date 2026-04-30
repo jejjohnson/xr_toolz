@@ -102,13 +102,14 @@ class ScaleSkillPanel(_ValidationPanel):
             da = scores[metric_name]
         else:
             da = scores
-            metric_name = da.name or self.ylabel
+            metric_name = str(da.name) if da.name is not None else self.ylabel
         regions = [str(r) for r in da[self.region_dim].values]
         values = da.values
         ax = axes
-        ax.bar(regions, values)
+        ax.bar(regions, values, label=metric_name)
         ax.set_xlabel(self.region_dim)
-        ax.set_ylabel(metric_name)
+        ax.set_ylabel(self.ylabel)
+        ax.legend(loc="best", fontsize=9)
         ax.grid(True, axis="y", alpha=0.3)
         if len(regions) > 6:
             for label in ax.get_xticklabels():

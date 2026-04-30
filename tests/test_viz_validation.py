@@ -57,31 +57,33 @@ def test_validation_panel_does_not_mutate_input_dataset():
     da = xr.DataArray(np.arange(5.0), dims=("lead_time",), name="rmse")
     ds = da.to_dataset()
     ds_before = ds.copy(deep=True)
-    LeadTimeSkillPanel()(da)
+    LeadTimeSkillPanel()(ds)
     xr.testing.assert_identical(ds, ds_before)
 
 
 def test_validation_panel_in_sequential_at_last_step_returns_figure():
-    class _Identity(_ValidationPanel):
-        # noop op that just passes through (used for the regression below)
-        pass
-
     da = xr.DataArray(np.arange(5.0), dims=("lead_time",))
     pipeline = Sequential([LeadTimeSkillPanel()])
     out = pipeline(da)
     assert isinstance(out, mpl_figure.Figure)
 
 
-def test_validation_panel_non_terminal_in_sequential_raises():
-    """A panel placed mid-pipeline must fail loudly: subsequent ops can
-    not consume a Figure (per D10 / D15)."""
+def test_validation_panel_non_terminal_in_sequential_fails_downstream():
+    """A panel placed mid-pipeline must fail downstream — a Figure has no
+    Dataset / DataArray methods, so the next op's natural error surfaces.
 
-    class _NeedsDataset:
+    Sequential itself is intentionally generic (it pipes any callable),
+    so the contract is documented rather than runtime-enforced; this
+    test pins the failure mode so a future Sequential rewrite that
+    silently accepts a Figure does not regress D10.
+    """
+
+    class _NeedsDataArray:
         def __call__(self, x):
-            x.where(x > 0)  # Figure has no .where()
+            return x.where(x > 0)  # Figure has no .where()
 
     da = xr.DataArray(np.arange(5.0), dims=("lead_time",))
-    pipeline = Sequential([LeadTimeSkillPanel(), _NeedsDataset()])
+    pipeline = Sequential([LeadTimeSkillPanel(), _NeedsDataArray()])
     with pytest.raises(AttributeError):
         pipeline(da)
 

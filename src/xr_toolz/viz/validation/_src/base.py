@@ -72,9 +72,11 @@ class _ValidationPanel(Operator):
             fig, axes = self._make_fig_axes()
             self._build(fig, axes, *args, **kwargs)
             title = self.title if self.title is not None else self._default_title()
+            # tight_layout before suptitle so suptitle isn't clipped by the
+            # axes-only layout pass.
+            fig.tight_layout()
             if title:
                 fig.suptitle(title)
-            fig.tight_layout()
         return fig
 
     def get_config(self) -> dict[str, Any]:

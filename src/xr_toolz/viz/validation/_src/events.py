@@ -7,7 +7,6 @@ from typing import Any
 
 import matplotlib.figure as mpl_figure
 import matplotlib.patches as mpatches
-import numpy as np
 import xarray as xr
 
 from xr_toolz.viz.validation._src.base import _ValidationPanel
@@ -166,7 +165,3 @@ class EventVerificationPanel(_ValidationPanel):
 
 
 __all__ = ["EventVerificationPanel"]
-
-
-# silence unused-import warnings while still pulling in numpy at top level
-_ = np
