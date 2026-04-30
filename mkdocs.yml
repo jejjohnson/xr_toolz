@@ -74,7 +74,9 @@ nav:
           - Smoke Demo: notebooks/aemet_smoke.ipynb
           - Comunidad Valenciana: notebooks/aemet_valencia.ipynb
           - National Climatology: notebooks/aemet_national.ipynb
-  - API Reference: api/reference.md
+  - API Reference:
+      - Overview: api/reference.md
+      - Metrics: api/metrics.md
   - Contributing: contributing.md
   - Changelog: CHANGELOG.md
 
