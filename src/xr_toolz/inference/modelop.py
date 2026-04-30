@@ -177,6 +177,13 @@ class ModelOp(Operator):
                 attrs=dict(da.attrs),
             )
 
+        if self.output_dim in sample_dims:
+            raise ValueError(
+                f"output_dim {self.output_dim!r} collides with an existing "
+                f"sample dim {sample_dims}; pass a distinct ``output_dim=`` "
+                "to ModelOp to disambiguate."
+            )
+
         n_out = y.shape[-1]
         target_shape = (*sample_shape, n_out) if sample_shape else (1, n_out)
         arr = y.reshape(target_shape)

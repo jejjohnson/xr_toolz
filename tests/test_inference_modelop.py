@@ -193,6 +193,29 @@ def test_higher_rank_model_output_rejected(da_2d: xr.DataArray) -> None:
         op(da_2d)
 
 
+def test_output_dim_collision_with_sample_dim_rejected() -> None:
+    rng = np.random.default_rng(9)
+    # Input has a non-feature dim already named "output" — collides
+    # with the default ``output_dim="output"``.
+    da = xr.DataArray(
+        rng.standard_normal((3, 5, 2)),
+        dims=("output", "sample", "feature"),
+    )
+
+    class _MultiOutputModel:
+        def predict(self, x: np.ndarray) -> np.ndarray:
+            return np.zeros((x.shape[0], 4))
+
+    op = ModelOp(_MultiOutputModel())
+    with pytest.raises(ValueError, match="collides"):
+        op(da)
+    # Workaround: pass a distinct output_dim.
+    op_ok = ModelOp(_MultiOutputModel(), output_dim="channel")
+    out = op_ok(da)
+    assert "channel" in out.dims
+    assert "output" in out.dims  # original sample dim preserved
+
+
 def test_works_inside_graph(da_2d: xr.DataArray) -> None:
     from xr_toolz.core import Graph, Input
 
