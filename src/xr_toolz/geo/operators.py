@@ -305,7 +305,6 @@ _DEPRECATED_METRIC_OPS = {
     "Bias",
     "Correlation",
     "R2Score",
-    "_PixelMetricOp",
     "PSDScore",
 }
 
