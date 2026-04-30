@@ -10,6 +10,8 @@ that existing deep imports such as
 resolve for one release while downstream code migrates.
 """
 
+from __future__ import annotations
+
 from xr_toolz.transforms._src.encoders import (
     cyclical_encode,
     encode_time_cyclical,

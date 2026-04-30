@@ -5,6 +5,8 @@ the top-level :mod:`xr_toolz.transforms.encoders` shim re-exports the public
 names for convenience.
 """
 
+from __future__ import annotations
+
 from xr_toolz.transforms._src.encoders.basis import (
     cyclical_encode,
     fourier_features,

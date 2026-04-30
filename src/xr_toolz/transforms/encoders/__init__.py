@@ -6,20 +6,22 @@ also importable as ``xr_toolz.transforms.encoders.<sub>`` for callers
 who want a narrower import.
 """
 
-from xr_toolz.transforms.encoders import basis, coord_space, coord_time
-from xr_toolz.transforms.encoders.basis import (
+from __future__ import annotations
+
+from . import basis, coord_space, coord_time
+from .basis import (
     cyclical_encode,
     fourier_features,
     positional_encoding,
     random_fourier_features,
 )
-from xr_toolz.transforms.encoders.coord_space import (
+from .coord_space import (
     lat_90_to_180,
     lat_180_to_90,
     lon_180_to_360,
     lon_360_to_180,
 )
-from xr_toolz.transforms.encoders.coord_time import (
+from .coord_time import (
     encode_time_cyclical,
     encode_time_ordinal,
     time_rescale,
