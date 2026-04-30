@@ -3182,6 +3182,7 @@ version = "0.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "finitediffx" },
+    { name = "matplotlib" },
     { name = "numpy" },
     { name = "numpy-groupies" },
     { name = "pandas" },
@@ -3251,6 +3252,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'aemet'", specifier = ">=0.28.1" },
     { name = "loguru", marker = "extra == 'aemet'", specifier = ">=0.7.3" },
     { name = "loguru", marker = "extra == 'cds-insitu'", specifier = ">=0.7.3" },
+    { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "numpy-groupies", specifier = ">=0.11" },
     { name = "pandas", specifier = ">=2.1" },
