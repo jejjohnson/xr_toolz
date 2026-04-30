@@ -373,6 +373,11 @@ class RandomFourierFeatures(Operator):
 
     def _apply(self, ds: xr.Dataset) -> xr.Dataset:
         da = ds[self.variable]
+        if da.ndim == 0:
+            raise ValueError(
+                "RandomFourierFeatures requires a non-scalar input variable; "
+                f"ds[{self.variable!r}] has ndim=0."
+            )
         encoded = _basis.random_fourier_features(
             da.values,
             num_features=self.num_features,
@@ -380,11 +385,11 @@ class RandomFourierFeatures(Operator):
             seed=self.seed,
         )
         name = self.output_name or f"{self.variable}_rff"
-        # random_fourier_features appends a feature axis for 1-D / scalar
-        # inputs but *replaces* the trailing feature axis for ≥ 2-D
-        # vector inputs (it projects via a (d, num_features/2) matrix).
-        if da.ndim <= 1:
-            out_dims: tuple[str, ...] = (*da.dims, self.feature_dim)
+        # random_fourier_features appends a feature axis for 1-D inputs
+        # but *replaces* the trailing feature axis for ≥ 2-D vector
+        # inputs (it projects via a (d, num_features/2) matrix).
+        if da.ndim == 1:
+            out_dims = (*da.dims, self.feature_dim)
         else:
             out_dims = (*da.dims[:-1], self.feature_dim)
         return ds.assign({name: (out_dims, encoded)})

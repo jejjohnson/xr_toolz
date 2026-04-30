@@ -83,6 +83,13 @@ def test_random_fourier_features_parity(ds_scalar: xr.Dataset) -> None:
     assert out["angle_rff"].dims == ("sample", "feature")
 
 
+def test_random_fourier_features_rejects_scalar_input() -> None:
+    ds = xr.Dataset({"x": ((), np.float64(1.5))})
+    op = RandomFourierFeatures(variable="x", num_features=4, seed=0)
+    with pytest.raises(ValueError, match="non-scalar"):
+        op(ds)
+
+
 def test_random_fourier_features_replaces_trailing_axis_for_vector_input() -> None:
     rng = np.random.default_rng(0)
     ds = xr.Dataset(
