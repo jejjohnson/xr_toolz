@@ -3,6 +3,12 @@
 Pure-array entry points used by Tier B (xarray) wrappers. Signatures
 follow D11: ``(prediction, reference, *, axis, **kwargs) -> ndarray``.
 
+NaN handling: matches the Tier B xarray default (``skipna=True`` for
+floating-point arrays). All reductions ignore NaNs via
+:func:`numpy.nanmean` / :func:`numpy.nansum`. If every element along
+``axis`` is NaN, the result for that slice is NaN (NumPy emits a
+``RuntimeWarning``).
+
 Backend: numpy. JAX / CuPy variants are out of scope for the pilot.
 """
 
@@ -21,10 +27,10 @@ def mse(
     *,
     axis: Axis = -1,
 ) -> NDArray[np.floating]:
-    """Mean squared error along ``axis``."""
+    """Mean squared error along ``axis``. NaN-skipping."""
     pred = np.asarray(prediction)
     ref = np.asarray(reference)
-    return np.mean((pred - ref) ** 2, axis=axis)
+    return np.nanmean((pred - ref) ** 2, axis=axis)
 
 
 def rmse(
@@ -33,7 +39,7 @@ def rmse(
     *,
     axis: Axis = -1,
 ) -> NDArray[np.floating]:
-    """Root mean squared error along ``axis``."""
+    """Root mean squared error along ``axis``. NaN-skipping."""
     return np.sqrt(mse(prediction, reference, axis=axis))
 
 
@@ -43,10 +49,10 @@ def mae(
     *,
     axis: Axis = -1,
 ) -> NDArray[np.floating]:
-    """Mean absolute error along ``axis``."""
+    """Mean absolute error along ``axis``. NaN-skipping."""
     pred = np.asarray(prediction)
     ref = np.asarray(reference)
-    return np.mean(np.abs(pred - ref), axis=axis)
+    return np.nanmean(np.abs(pred - ref), axis=axis)
 
 
 def bias(
@@ -55,10 +61,10 @@ def bias(
     *,
     axis: Axis = -1,
 ) -> NDArray[np.floating]:
-    """Mean bias ``<pred - ref>`` along ``axis``."""
+    """Mean bias ``<pred - ref>`` along ``axis``. NaN-skipping."""
     pred = np.asarray(prediction)
     ref = np.asarray(reference)
-    return np.mean(pred - ref, axis=axis)
+    return np.nanmean(pred - ref, axis=axis)
 
 
 def nrmse(
@@ -67,10 +73,10 @@ def nrmse(
     *,
     axis: Axis = -1,
 ) -> NDArray[np.floating]:
-    """Normalized RMSE: ``1 - RMSE / sqrt(<ref^2>)`` along ``axis``."""
+    """Normalized RMSE: ``1 - RMSE / sqrt(<ref^2>)`` along ``axis``. NaN-skipping."""
     err = rmse(prediction, reference, axis=axis)
     ref = np.asarray(reference)
-    scale = np.sqrt(np.mean(ref**2, axis=axis))
+    scale = np.sqrt(np.nanmean(ref**2, axis=axis))
     return 1.0 - err / scale
 
 
@@ -80,15 +86,17 @@ def correlation(
     *,
     axis: Axis = -1,
 ) -> NDArray[np.floating]:
-    """Pearson correlation between prediction and reference along ``axis``."""
+    """Pearson correlation between ``prediction`` and ``reference``. NaN-skipping."""
     pred = np.asarray(prediction)
     ref = np.asarray(reference)
-    pred_mean = np.mean(pred, axis=axis, keepdims=True)
-    ref_mean = np.mean(ref, axis=axis, keepdims=True)
+    pred_mean = np.nanmean(pred, axis=axis, keepdims=True)
+    ref_mean = np.nanmean(ref, axis=axis, keepdims=True)
     pred_anom = pred - pred_mean
     ref_anom = ref - ref_mean
-    num = np.mean(pred_anom * ref_anom, axis=axis)
-    denom = np.sqrt(np.mean(pred_anom**2, axis=axis) * np.mean(ref_anom**2, axis=axis))
+    num = np.nanmean(pred_anom * ref_anom, axis=axis)
+    denom = np.sqrt(
+        np.nanmean(pred_anom**2, axis=axis) * np.nanmean(ref_anom**2, axis=axis)
+    )
     return num / denom
 
 
@@ -98,12 +106,12 @@ def r2_score(
     *,
     axis: Axis = -1,
 ) -> NDArray[np.floating]:
-    """Coefficient of determination: ``1 - SS_res / SS_tot`` along ``axis``."""
+    """Coefficient of determination ``1 - SS_res / SS_tot``. NaN-skipping."""
     pred = np.asarray(prediction)
     ref = np.asarray(reference)
-    ss_res = np.sum((ref - pred) ** 2, axis=axis)
-    ref_mean = np.mean(ref, axis=axis, keepdims=True)
-    ss_tot = np.sum((ref - ref_mean) ** 2, axis=axis)
+    ss_res = np.nansum((ref - pred) ** 2, axis=axis)
+    ref_mean = np.nanmean(ref, axis=axis, keepdims=True)
+    ss_tot = np.nansum((ref - ref_mean) ** 2, axis=axis)
     return 1.0 - ss_res / ss_tot
 
 

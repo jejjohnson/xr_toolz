@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 import xarray as xr
 
 from xr_toolz.core import Operator
@@ -43,17 +44,28 @@ def _apply_pixel_kernel(
     kernel via :func:`xr.apply_ufunc` with ``dims`` as the input core
     dimensions. The kernel sees a flattened trailing block of axes and
     reduces with ``axis=tuple(range(-len(core), 0))``.
+
+    For dask-backed inputs, ``allow_rechunk=True`` is set so a core
+    dimension that is split across multiple chunks is rechunked into a
+    single chunk before the kernel runs. Without this, ``apply_ufunc``
+    raises on multi-chunk core dims, which is a common case for the
+    reduce dimension (e.g. ``time`` chunked monthly).
+
+    Output dtype is promoted to at least ``float64`` so that integer
+    inputs don't truncate floating-point reductions.
     """
     da_pred = ds_pred[variable]
     da_ref = ds_ref[variable]
     core = _normalize_dims(dims)
+    out_dtype = np.result_type(da_pred.dtype, np.float64)
     out: xr.DataArray = xr.apply_ufunc(
         lambda p, r: fn(p, r, axis=tuple(range(-len(core), 0))),
         da_pred,
         da_ref,
         input_core_dims=[core, core],
         dask="parallelized",
-        output_dtypes=[da_pred.dtype],
+        output_dtypes=[out_dtype],
+        dask_gufunc_kwargs={"allow_rechunk": True},
     )
     return out
 

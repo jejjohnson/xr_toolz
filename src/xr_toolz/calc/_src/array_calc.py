@@ -67,9 +67,10 @@ def gradient(
                 f"spacing tuple length ({len(steps)}) does not match number "
                 f"of axes ({len(target)})."
             )
-    return tuple(
-        np.gradient(arr, step, axis=ax) for ax, step in zip(target, steps, strict=True)
-    )
+    result = np.gradient(arr, *steps, axis=target)
+    if isinstance(result, tuple):
+        return result
+    return (result,)
 
 
 __all__ = [

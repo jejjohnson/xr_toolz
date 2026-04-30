@@ -62,11 +62,15 @@ def power_spectrum(
     d: float | tuple[float, ...] = 1.0,
     norm: FFTNorm = "ortho",
 ) -> tuple[NDArray[np.floating], tuple[NDArray[np.floating], ...]]:
-    """Power spectral density of ``x`` along ``axis``.
+    """Power spectrum of ``x`` along ``axis``.
 
-    Computes the squared magnitude of the discrete Fourier transform.
-    No windowing or detrending — the Tier B wrapper handles those via
-    ``xrft``. This is the minimal raw-array entry point.
+    Computes the squared magnitude of the discrete Fourier transform,
+    ``|FFT(x)|**2``. No windowing or detrending is applied — the Tier B
+    wrapper handles those via ``xrft``. This minimal raw-array entry
+    point also does not apply any additional density scaling by sample
+    spacing beyond constructing the returned frequency coordinates;
+    pass ``norm="ortho"`` (default) to keep units consistent across
+    sample counts.
 
     Args:
         x: Input array.
