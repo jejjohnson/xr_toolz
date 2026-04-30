@@ -131,12 +131,12 @@ class ModelOp(Operator):
         if isinstance(data, xr.Dataset):
             return data.to_array(dim=self.feature_dim).transpose(..., self.feature_dim)
         arr = np.asarray(data)
-        if arr.ndim == 1:
-            arr = arr[:, np.newaxis]
         if arr.ndim != 2:
             raise ValueError(
-                "Raw array inputs must be 1-D or 2-D; got "
-                f"shape={arr.shape}. Wrap higher-rank data as DataArray."
+                "Raw array inputs must be 2-D ``(n_samples, n_features)``; "
+                f"got shape={arr.shape}. For a single sample, pass "
+                "``arr[np.newaxis, :]`` (or wrap higher-rank data as a "
+                "DataArray with a named feature dim)."
             )
         return xr.DataArray(arr, dims=("sample", self.feature_dim))
 
@@ -147,12 +147,26 @@ class ModelOp(Operator):
         sample_dims: tuple[str, ...],
         sample_shape: tuple[int, ...],
     ) -> xr.DataArray:
+        if y.ndim not in (1, 2):
+            raise ValueError(
+                "Model output must be 1-D ``(n_samples,)`` or 2-D "
+                f"``(n_samples, n_outputs)``; got shape={y.shape}. "
+                "Higher-rank outputs cannot be unambiguously reshaped "
+                "back onto the input's sample dims."
+            )
+
         if y.ndim == 1:
             target_shape = sample_shape if sample_shape else (1,)
             arr = y.reshape(target_shape)
             dims = sample_dims if sample_dims else ("sample",)
             coords = {d: da.coords[d] for d in sample_dims if d in da.coords}
-            return xr.DataArray(arr, dims=dims, coords=coords, name=self.output_name)
+            return xr.DataArray(
+                arr,
+                dims=dims,
+                coords=coords,
+                name=self.output_name,
+                attrs=dict(da.attrs),
+            )
 
         n_out = y.shape[-1]
         target_shape = (*sample_shape, n_out) if sample_shape else (1, n_out)
@@ -166,7 +180,13 @@ class ModelOp(Operator):
             )
         )
         coords = {d: da.coords[d] for d in sample_dims if d in da.coords}
-        return xr.DataArray(arr, dims=dims, coords=coords, name=self.output_name)
+        return xr.DataArray(
+            arr,
+            dims=dims,
+            coords=coords,
+            name=self.output_name,
+            attrs=dict(da.attrs),
+        )
 
     # ------------------------------------------------------------------
     # Config
@@ -262,7 +282,13 @@ class JaxModelOp(ModelOp):
         if self._method_override is None:
             base_fn: Callable[[np.ndarray], Any] = self.model
         else:
-            base_fn = getattr(self.model, self._method_override)
+            try:
+                base_fn = getattr(self.model, self._method_override)
+            except AttributeError as exc:
+                raise AttributeError(
+                    f"JAX model {type(self.model).__name__!r} has no method "
+                    f"{self._method_override!r}."
+                ) from exc
 
         if self.jit:
             import jax  # lazy by design (D4)

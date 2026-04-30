@@ -1,4 +1,4 @@
-"""Inference operators — wrap trained models as Layer-1 ``Operator``\\ s.
+"""Inference operators — wrap trained models as Layer-1 Operators.
 
 Per design decision D4, this module is **framework-agnostic**: it never
 imports ``sklearn``, ``jax``, ``torch``, or ``equinox`` at module load

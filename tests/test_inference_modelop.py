@@ -124,6 +124,36 @@ def test_repr_uses_config() -> None:
     assert "ModelOp" in r and "feature_dim='band'" in r
 
 
+def test_attrs_are_preserved(da_2d: xr.DataArray) -> None:
+    da = da_2d.assign_attrs(units="K", long_name="surface temperature")
+    op = ModelOp(_DummyModel())
+    out = op(da)
+    assert out.attrs.get("units") == "K"
+    assert out.attrs.get("long_name") == "surface temperature"
+
+
+def test_raw_1d_array_rejected() -> None:
+    op = ModelOp(_DummyModel())
+    with pytest.raises(ValueError, match="2-D"):
+        op(np.zeros(5))
+
+
+def test_raw_3d_array_rejected() -> None:
+    op = ModelOp(_DummyModel())
+    with pytest.raises(ValueError, match="2-D"):
+        op(np.zeros((2, 3, 4)))
+
+
+def test_higher_rank_model_output_rejected(da_2d: xr.DataArray) -> None:
+    class _BadModel:
+        def predict(self, x: np.ndarray) -> np.ndarray:
+            return np.zeros((x.shape[0], 1, 2))
+
+    op = ModelOp(_BadModel())
+    with pytest.raises(ValueError, match=r"1-D .* or 2-D"):
+        op(da_2d)
+
+
 def test_works_inside_graph(da_2d: xr.DataArray) -> None:
     from xr_toolz.core import Graph, Input
 

@@ -10,7 +10,7 @@ import pytest
 import xarray as xr
 
 
-sklearn = pytest.importorskip("sklearn")
+pytest.importorskip("sklearn")
 
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
