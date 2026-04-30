@@ -18,6 +18,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 import xarray as xr
 
 from xr_toolz.core import Operator
@@ -30,6 +31,13 @@ from xr_toolz.transforms._src.encoders import (
     basis as _basis,
     coord_time as _coord_time,
 )
+
+
+def _datetime_to_jsonable(value: str | np.datetime64 | None) -> str | None:
+    """Stringify ``np.datetime64`` for JSON-serializable ``get_config``."""
+    if value is None or isinstance(value, str):
+        return value
+    return str(value)
 
 
 # ---------- Fourier --------------------------------------------------------
@@ -372,7 +380,14 @@ class RandomFourierFeatures(Operator):
             seed=self.seed,
         )
         name = self.output_name or f"{self.variable}_rff"
-        return ds.assign({name: ((*da.dims, self.feature_dim), encoded)})
+        # random_fourier_features appends a feature axis for 1-D / scalar
+        # inputs but *replaces* the trailing feature axis for ≥ 2-D
+        # vector inputs (it projects via a (d, num_features/2) matrix).
+        if da.ndim <= 1:
+            out_dims: tuple[str, ...] = (*da.dims, self.feature_dim)
+        else:
+            out_dims = (*da.dims[:-1], self.feature_dim)
+        return ds.assign({name: (out_dims, encoded)})
 
     def get_config(self) -> dict[str, Any]:
         return {
@@ -446,7 +461,7 @@ class EncodeTimeOrdinal(Operator):
 
     def __init__(
         self,
-        reference_date: str | None = None,
+        reference_date: str | np.datetime64 | None = None,
         time: str = "time",
         unit: str = "D",
     ) -> None:
@@ -464,7 +479,7 @@ class EncodeTimeOrdinal(Operator):
 
     def get_config(self) -> dict[str, Any]:
         return {
-            "reference_date": self.reference_date,
+            "reference_date": _datetime_to_jsonable(self.reference_date),
             "time": self.time,
             "unit": self.unit,
         }
@@ -477,7 +492,7 @@ class TimeRescale(Operator):
         self,
         freq_dt: float = 1.0,
         freq_unit: str = "s",
-        t0: str | None = None,
+        t0: str | np.datetime64 | None = None,
         time: str = "time",
     ) -> None:
         self.freq_dt = float(freq_dt)
@@ -498,7 +513,7 @@ class TimeRescale(Operator):
         return {
             "freq_dt": self.freq_dt,
             "freq_unit": self.freq_unit,
-            "t0": self.t0,
+            "t0": _datetime_to_jsonable(self.t0),
             "time": self.time,
         }
 

@@ -80,6 +80,24 @@ def test_random_fourier_features_parity(ds_scalar: xr.Dataset) -> None:
         ds_scalar["angle"].values, num_features=10, sigma=1.5, seed=42
     )
     np.testing.assert_allclose(out["angle_rff"].values, expected)
+    assert out["angle_rff"].dims == ("sample", "feature")
+
+
+def test_random_fourier_features_replaces_trailing_axis_for_vector_input() -> None:
+    rng = np.random.default_rng(0)
+    ds = xr.Dataset(
+        {"x": (("sample", "channel"), rng.standard_normal((6, 3)))},
+        coords={"sample": np.arange(6), "channel": np.arange(3)},
+    )
+    op = RandomFourierFeatures(variable="x", num_features=8, sigma=1.0, seed=1)
+    out = op(ds)
+    expected = random_fourier_features(
+        ds["x"].values, num_features=8, sigma=1.0, seed=1
+    )
+    # Output should be 2-D (sample, feature) — trailing channel axis replaced.
+    assert out["x_rff"].dims == ("sample", "feature")
+    assert out["x_rff"].shape == (6, 8)
+    np.testing.assert_allclose(out["x_rff"].values, expected)
 
 
 def test_positional_encoding_parity(ds_scalar: xr.Dataset) -> None:
@@ -143,3 +161,11 @@ def test_time_rescale_unrescale_round_trip(ds_time: xr.Dataset) -> None:
 def test_get_config_json_round_trips(op) -> None:
     cfg = op.get_config()
     assert json.loads(json.dumps(cfg)) == cfg
+
+
+def test_time_ops_stringify_datetime64_in_config() -> None:
+    t0 = np.datetime64("2020-06-15T00:00:00")
+    rescale = TimeRescale(freq_dt=1.0, freq_unit="D", t0=t0)
+    ordinal = EncodeTimeOrdinal(reference_date=t0)
+    for cfg in (rescale.get_config(), ordinal.get_config()):
+        assert json.loads(json.dumps(cfg)) == cfg
