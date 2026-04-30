@@ -1,12 +1,12 @@
-"""Deep-import shim for the ocean kinematics primitives that moved to
-:mod:`xr_toolz.kinematics._src.ocean` (D9).
+"""Kinematic and geostrophic quantities, sub-organized by domain (D9).
 
-The public-surface :mod:`xr_toolz.ocn` module emits a
-:class:`DeprecationWarning` when these names are accessed via
-``from xr_toolz.ocn import <name>``. This module is kept only so that
-existing deep imports such as
-``from xr_toolz.ocn._src.kinematics import coriolis_parameter`` continue
-to resolve for one release while downstream code migrates.
+Layer-0 primitives live in :mod:`xr_toolz.kinematics._src.<domain>`
+(``ocean``, ``atmosphere``, ``ice``, ``remote_sensing``) and are
+re-exported here. Tier C ``Operator`` wrappers live in
+:mod:`xr_toolz.kinematics.operators`.
+
+Today only :mod:`xr_toolz.kinematics._src.ocean` is populated; the other
+domain submodules are empty placeholders reserved for future content.
 """
 
 from xr_toolz.kinematics._src.ocean import (

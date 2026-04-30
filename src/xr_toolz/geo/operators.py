@@ -19,6 +19,7 @@ from typing import Any
 
 from xr_toolz.core import Operator
 from xr_toolz.geo._src import (
+    altimetry as _altimetry,
     detrend as _detrend,
     interpolate as _interpolate,
     masks as _masks,
@@ -63,6 +64,69 @@ class RenameCoords(Operator):
 
     def get_config(self) -> dict[str, Any]:
         return {"mapping": self.mapping}
+
+
+class ValidateSSH(Operator):
+    """Wrap :func:`xr_toolz.geo.validate_ssh`."""
+
+    def __init__(self, variable: str = "ssh"):
+        self.variable = variable
+
+    def _apply(self, ds):
+        return _validation.validate_ssh(ds, variable=self.variable)
+
+    def get_config(self) -> dict[str, Any]:
+        return {"variable": self.variable}
+
+
+class ValidateVelocity(Operator):
+    """Wrap :func:`xr_toolz.geo.validate_velocity`."""
+
+    def __init__(self, u: str = "u", v: str = "v"):
+        self.u = u
+        self.v = v
+
+    def _apply(self, ds):
+        return _validation.validate_velocity(ds, u=self.u, v=self.v)
+
+    def get_config(self) -> dict[str, Any]:
+        return {"u": self.u, "v": self.v}
+
+
+# ---------- altimetry ------------------------------------------------------
+
+
+class CalculateSSHAlongtrack(Operator):
+    """Wrap :func:`xr_toolz.geo.calculate_ssh_alongtrack`."""
+
+    def __init__(
+        self,
+        variable: str = "ssh",
+        sla: str = "sla_filtered",
+        mdt: str = "mdt",
+        lwe: str = "lwe",
+    ):
+        self.variable = variable
+        self.sla = sla
+        self.mdt = mdt
+        self.lwe = lwe
+
+    def _apply(self, ds):
+        return _altimetry.calculate_ssh_alongtrack(
+            ds,
+            variable=self.variable,
+            sla=self.sla,
+            mdt=self.mdt,
+            lwe=self.lwe,
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "variable": self.variable,
+            "sla": self.sla,
+            "mdt": self.mdt,
+            "lwe": self.lwe,
+        }
 
 
 # ---------- subset ---------------------------------------------------------
@@ -336,6 +400,7 @@ __all__ = [
     "ApplyMask",
     "CalculateClimatology",
     "CalculateClimatologySmoothed",
+    "CalculateSSHAlongtrack",
     "FillNaNSpatial",
     "FillNaNTemporal",
     "RemoveClimatology",
@@ -347,4 +412,6 @@ __all__ = [
     "ValidateCoords",
     "ValidateLatitude",
     "ValidateLongitude",
+    "ValidateSSH",
+    "ValidateVelocity",
 ]

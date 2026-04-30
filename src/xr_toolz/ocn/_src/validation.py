@@ -1,36 +1,12 @@
-"""Ocean-specific variable validation (attribute harmonization)."""
+"""Deep-import shim for SSH / velocity validation that moved to
+:mod:`xr_toolz.geo._src.validation` (D9).
 
-from __future__ import annotations
+Kept only so that legacy deep imports such as
+``from xr_toolz.ocn._src.validation import validate_ssh`` resolve for
+one release while downstream code migrates.
+"""
 
-import xarray as xr
-
-
-def validate_ssh(ds: xr.Dataset, variable: str = "ssh") -> xr.Dataset:
-    """Attach CF-style attrs to an SSH variable."""
-    ds = ds.copy()
-    ds[variable] = ds[variable].assign_attrs(
-        units="m",
-        standard_name="sea_surface_height",
-        long_name="Sea Surface Height",
-    )
-    return ds
+from xr_toolz.geo._src.validation import validate_ssh, validate_velocity
 
 
-def validate_velocity(
-    ds: xr.Dataset,
-    u: str = "u",
-    v: str = "v",
-) -> xr.Dataset:
-    """Attach CF-style attrs to zonal / meridional velocity variables."""
-    ds = ds.copy()
-    ds[u] = ds[u].assign_attrs(
-        units="m s-1",
-        standard_name="sea_water_x_velocity",
-        long_name="Zonal Velocity",
-    )
-    ds[v] = ds[v].assign_attrs(
-        units="m s-1",
-        standard_name="sea_water_y_velocity",
-        long_name="Meridional Velocity",
-    )
-    return ds
+__all__ = ["validate_ssh", "validate_velocity"]

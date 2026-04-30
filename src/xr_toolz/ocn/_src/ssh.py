@@ -1,49 +1,15 @@
-"""Sea-surface height helpers."""
+"""Deep-import shim for SSH-composition helpers that moved to
+:mod:`xr_toolz.geo._src.altimetry` (D9).
 
-from __future__ import annotations
+Kept only so that legacy deep imports such as
+``from xr_toolz.ocn._src.ssh import calculate_ssh_alongtrack`` resolve
+for one release while downstream code migrates.
+"""
 
-import xarray as xr
-
-
-def calculate_ssh_alongtrack(
-    ds: xr.Dataset,
-    variable: str = "ssh",
-    sla: str = "sla_filtered",
-    mdt: str = "mdt",
-    lwe: str = "lwe",
-) -> xr.Dataset:
-    """Compose along-track SSH from SLA + MDT minus LWE.
-
-    Equivalent altimetry-convention formula:
-
-    ``ssh = sla_filtered + mdt - lwe``
-
-    Args:
-        ds: Dataset containing ``sla``, ``mdt``, ``lwe``.
-        variable: Name under which to store the SSH output.
-        sla: Sea-level anomaly variable name.
-        mdt: Mean dynamic topography variable name.
-        lwe: Land-water equivalent correction variable name.
-
-    Returns:
-        ``ds`` with ``variable`` added.
-    """
-    ds = ds.copy()
-    ds[variable] = ds[sla] + ds[mdt] - ds[lwe]
-    ds[variable].attrs.update(
-        units="m",
-        standard_name="sea_surface_height",
-        long_name="Sea Surface Height",
-    )
-    return ds
+from xr_toolz.geo._src.altimetry import (
+    calculate_ssh_alongtrack,
+    calculate_ssh_unfiltered,
+)
 
 
-def calculate_ssh_unfiltered(
-    ds: xr.Dataset,
-    variable: str = "ssh",
-    sla: str = "sla_unfiltered",
-    mdt: str = "mdt",
-    lwe: str = "lwe",
-) -> xr.Dataset:
-    """Same as :func:`calculate_ssh_alongtrack` but from the unfiltered SLA."""
-    return calculate_ssh_alongtrack(ds, variable=variable, sla=sla, mdt=mdt, lwe=lwe)
+__all__ = ["calculate_ssh_alongtrack", "calculate_ssh_unfiltered"]
