@@ -144,7 +144,7 @@ def evaluate_by_region(
     # metric on the first non-empty region and then multiplying by NaN —
     # the operator's contract for empty regions becomes deterministic
     # rather than dependent on the inner metric's NaN behaviour.
-    pieces: list[xr.Dataset] = [None] * len(region_ids)  # type: ignore[list-item]
+    slots: list[xr.Dataset | None] = [None] * len(region_ids)
     nan_template: xr.Dataset | None = None
     for idx, rid in enumerate(region_ids):
         sel = mask == rid
@@ -155,7 +155,7 @@ def evaluate_by_region(
         result = metric(pred_r, ref_r)
         if isinstance(result, xr.DataArray):
             result = result.to_dataset(name=result.name or "score")
-        pieces[idx] = result
+        slots[idx] = result
         if nan_template is None:
             nan_template = result * np.nan
 
@@ -165,7 +165,7 @@ def evaluate_by_region(
             "build a NaN-template result. Check that the mask intersects the "
             "data grid."
         )
-    pieces = [p if p is not None else nan_template for p in pieces]
+    pieces: list[xr.Dataset] = [p if p is not None else nan_template for p in slots]
 
     out = xr.concat(pieces, dim="region")
     out = out.assign_coords(region=("region", [names[i] for i in region_ids]))
