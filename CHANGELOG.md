@@ -5,13 +5,15 @@
 ### Removed
 
 * `xr_toolz.atm`, `xr_toolz.ice`, `xr_toolz.rs` — empty placeholder packages with no public surface, deleted outright per D9. Pre-1.0 breaking change.
+* `xr_toolz.ocn` — deleted outright per D9. Pre-1.0 with no external users, so no deprecation cycle. Replacements:
+    - 25 ocean kinematics primitives (`coriolis_parameter`, `geostrophic_velocities`, `relative_vorticity`, `divergence`, …) → `xr_toolz.kinematics`.
+    - `xr_toolz.ocn.operators.*` kinematics wrappers → `xr_toolz.kinematics.operators`.
+    - `calculate_ssh_alongtrack`, `calculate_ssh_unfiltered`, `validate_ssh`, `validate_velocity` → `xr_toolz.geo` (SSH composition lives in the new `xr_toolz.geo._src.altimetry` module).
+    - `CalculateSSHAlongtrack`, `ValidateSSH`, `ValidateVelocity` → `xr_toolz.geo.operators`.
 
 ### Deprecated
 
 * `xr_toolz.geo.{cyclical_encode, fourier_features, positional_encoding, random_fourier_features, lat_90_to_180, lat_180_to_90, lon_180_to_360, lon_360_to_180, encode_time_cyclical, encode_time_ordinal, time_rescale, time_unrescale}` — moved to `xr_toolz.transforms.encoders` (D8). The legacy paths still resolve via PEP-562 with a `DeprecationWarning` for one release; removal scheduled for the next minor.
-* `xr_toolz.ocn.{coriolis_parameter, geostrophic_velocities, relative_vorticity, divergence, …}` (25 ocean kinematics primitives) — moved to `xr_toolz.kinematics` (D9). `xr_toolz.ocn.operators.*` kinematics wrappers correspondingly moved to `xr_toolz.kinematics.operators`.
-* `xr_toolz.ocn.{calculate_ssh_alongtrack, calculate_ssh_unfiltered, validate_ssh, validate_velocity}` and the matching `xr_toolz.ocn.operators.{CalculateSSHAlongtrack, ValidateSSH, ValidateVelocity}` — moved to `xr_toolz.geo` / `xr_toolz.geo.operators`. SSH composition lives in the new `xr_toolz.geo._src.altimetry` module.
-* All deprecated `xr_toolz.ocn.*` paths still resolve via PEP-562 with a `DeprecationWarning` for one release; the entire `xr_toolz.ocn` package is scheduled for removal in the next minor.
 
 ## 0.0.1 (2026-04-30)
 

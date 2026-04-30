@@ -8,7 +8,6 @@ validation re-homing under ``xr_toolz.geo``).
 from __future__ import annotations
 
 import importlib
-import warnings
 
 import pytest
 
@@ -127,84 +126,13 @@ def test_kinematics_domain_stubs_are_importable_and_empty():
         )
 
 
-# ---- Legacy deprecation surface ------------------------------------------
+# ---- Removed top-level packages -----------------------------------------
 
 
-@pytest.mark.parametrize("name", _OCEAN_KINEMATICS)
-def test_legacy_ocn_kinematics_imports_warn_but_resolve(name):
-    import xr_toolz.ocn as ocn
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        obj = getattr(ocn, name)
-
-    assert callable(obj)
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert deprecations, f"expected DeprecationWarning on legacy xr_toolz.ocn.{name}"
-    assert "xr_toolz.kinematics" in str(deprecations[0].message)
-
-
-@pytest.mark.parametrize(
-    "name", ("calculate_ssh_alongtrack", "calculate_ssh_unfiltered")
-)
-def test_legacy_ocn_ssh_imports_warn_and_point_at_geo(name):
-    import xr_toolz.ocn as ocn
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        obj = getattr(ocn, name)
-
-    assert callable(obj)
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert deprecations
-    assert "xr_toolz.geo" in str(deprecations[0].message)
-
-
-@pytest.mark.parametrize("name", ("validate_ssh", "validate_velocity"))
-def test_legacy_ocn_validation_imports_warn_and_point_at_geo(name):
-    import xr_toolz.ocn as ocn
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        obj = getattr(ocn, name)
-
-    assert callable(obj)
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert deprecations
-    assert "xr_toolz.geo" in str(deprecations[0].message)
-
-
-@pytest.mark.parametrize("name", _KINEMATICS_OPS)
-def test_legacy_ocn_operators_kinematics_warn_but_resolve(name):
-    import xr_toolz.ocn.operators as ops
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        cls = getattr(ops, name)
-
-    assert isinstance(cls, type)
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert deprecations
-    assert "xr_toolz.kinematics.operators" in str(deprecations[0].message)
-
-
-@pytest.mark.parametrize("name", _GEO_NEW_OPS)
-def test_legacy_ocn_operators_ssh_validation_warn_and_point_at_geo(name):
-    import xr_toolz.ocn.operators as ops
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        cls = getattr(ops, name)
-
-    assert isinstance(cls, type)
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert deprecations
-    assert "xr_toolz.geo.operators" in str(deprecations[0].message)
-
-
-def test_atm_ice_rs_top_level_packages_are_gone():
-    """F6.3: the empty domain stubs were deleted outright (no
-    deprecation, since they had no public surface)."""
-    for pkg in ("xr_toolz.atm", "xr_toolz.ice", "xr_toolz.rs"):
+def test_removed_top_level_domain_packages_are_gone():
+    """F6.3: the legacy domain packages (``ocn``, ``atm``, ``ice``,
+    ``rs``) were deleted outright. Pre-1.0 with no external users — no
+    deprecation cycle needed."""
+    for pkg in ("xr_toolz.ocn", "xr_toolz.atm", "xr_toolz.ice", "xr_toolz.rs"):
         with pytest.raises(ModuleNotFoundError):
             importlib.import_module(pkg)

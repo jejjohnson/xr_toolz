@@ -1,4 +1,4 @@
-"""Tests for :mod:`xr_toolz.ocn` — Layer-0 and Layer-1."""
+"""Tests for ocean kinematics + altimetry — Layer-0 and Layer-1."""
 
 from __future__ import annotations
 
@@ -7,12 +7,20 @@ import pytest
 import xarray as xr
 
 from xr_toolz.core import Sequential
-from xr_toolz.ocn import (
+from xr_toolz.geo import (
+    calculate_ssh_alongtrack,
+    validate_ssh,
+    validate_velocity,
+)
+from xr_toolz.geo.operators import (
+    CalculateSSHAlongtrack,
+    ValidateSSH,
+)
+from xr_toolz.kinematics import (
     absolute_vorticity,
     advection,
     ageostrophic_velocities,
     brunt_vaisala_frequency,
-    calculate_ssh_alongtrack,
     coriolis_parameter,
     curvature_vorticity,
     divergence,
@@ -32,15 +40,12 @@ from xr_toolz.ocn import (
     strain_magnitude,
     streamfunction,
     tensor_strain,
-    validate_ssh,
-    validate_velocity,
     velocity_magnitude,
 )
-from xr_toolz.ocn.operators import (
+from xr_toolz.kinematics.operators import (
     Advection,
     AgeostrophicVelocities,
     BruntVaisalaFrequency,
-    CalculateSSHAlongtrack,
     CurvatureVorticity,
     Divergence,
     EddyKineticEnergy,
@@ -55,7 +60,6 @@ from xr_toolz.ocn.operators import (
     RelativeVorticity,
     ShearVorticity,
     Streamfunction,
-    ValidateSSH,
     VelocityMagnitude,
 )
 
