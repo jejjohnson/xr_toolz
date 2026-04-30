@@ -1,75 +1,11 @@
-"""Layer-1 ``Operator`` wrappers around :mod:`xr_toolz.ocn._src`."""
+"""Layer-1 ``Operator`` wrappers around :mod:`xr_toolz.kinematics._src`."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from xr_toolz.core import Operator
-from xr_toolz.ocn._src import (
-    kinematics as _kinematics,
-    ssh as _ssh,
-    validation as _validation,
-)
-
-
-# ---------- validation -----------------------------------------------------
-
-
-class ValidateSSH(Operator):
-    def __init__(self, variable: str = "ssh"):
-        self.variable = variable
-
-    def _apply(self, ds):
-        return _validation.validate_ssh(ds, variable=self.variable)
-
-    def get_config(self) -> dict[str, Any]:
-        return {"variable": self.variable}
-
-
-class ValidateVelocity(Operator):
-    def __init__(self, u: str = "u", v: str = "v"):
-        self.u = u
-        self.v = v
-
-    def _apply(self, ds):
-        return _validation.validate_velocity(ds, u=self.u, v=self.v)
-
-    def get_config(self) -> dict[str, Any]:
-        return {"u": self.u, "v": self.v}
-
-
-# ---------- SSH composition ------------------------------------------------
-
-
-class CalculateSSHAlongtrack(Operator):
-    def __init__(
-        self,
-        variable: str = "ssh",
-        sla: str = "sla_filtered",
-        mdt: str = "mdt",
-        lwe: str = "lwe",
-    ):
-        self.variable = variable
-        self.sla = sla
-        self.mdt = mdt
-        self.lwe = lwe
-
-    def _apply(self, ds):
-        return _ssh.calculate_ssh_alongtrack(
-            ds,
-            variable=self.variable,
-            sla=self.sla,
-            mdt=self.mdt,
-            lwe=self.lwe,
-        )
-
-    def get_config(self) -> dict[str, Any]:
-        return {
-            "variable": self.variable,
-            "sla": self.sla,
-            "mdt": self.mdt,
-            "lwe": self.lwe,
-        }
+from xr_toolz.kinematics._src import ocean as _ocean
 
 
 # ---------- kinematic physics ---------------------------------------------
@@ -87,9 +23,7 @@ class Streamfunction(Operator):
         self.f0 = f0
 
     def _apply(self, ds):
-        return _kinematics.streamfunction(
-            ds, variable=self.variable, g=self.g, f0=self.f0
-        )
+        return _ocean.streamfunction(ds, variable=self.variable, g=self.g, f0=self.f0)
 
     def get_config(self) -> dict[str, Any]:
         return {"variable": self.variable, "g": self.g, "f0": self.f0}
@@ -100,7 +34,7 @@ class GeostrophicVelocities(Operator):
         self.variable = variable
 
     def _apply(self, ds):
-        return _kinematics.geostrophic_velocities(ds, variable=self.variable)
+        return _ocean.geostrophic_velocities(ds, variable=self.variable)
 
     def get_config(self) -> dict[str, Any]:
         return {"variable": self.variable}
@@ -119,42 +53,42 @@ class _UVOperator(Operator):
 
 class KineticEnergy(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.kinetic_energy(ds, u=self.u, v=self.v)
+        return _ocean.kinetic_energy(ds, u=self.u, v=self.v)
 
 
 class RelativeVorticity(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.relative_vorticity(ds, u=self.u, v=self.v)
+        return _ocean.relative_vorticity(ds, u=self.u, v=self.v)
 
 
 class AbsoluteVorticity(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.absolute_vorticity(ds, u=self.u, v=self.v)
+        return _ocean.absolute_vorticity(ds, u=self.u, v=self.v)
 
 
 class Divergence(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.divergence(ds, u=self.u, v=self.v)
+        return _ocean.divergence(ds, u=self.u, v=self.v)
 
 
 class ShearStrain(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.shear_strain(ds, u=self.u, v=self.v)
+        return _ocean.shear_strain(ds, u=self.u, v=self.v)
 
 
 class TensorStrain(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.tensor_strain(ds, u=self.u, v=self.v)
+        return _ocean.tensor_strain(ds, u=self.u, v=self.v)
 
 
 class StrainMagnitude(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.strain_magnitude(ds, u=self.u, v=self.v)
+        return _ocean.strain_magnitude(ds, u=self.u, v=self.v)
 
 
 class OkuboWeiss(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.okubo_weiss(ds, u=self.u, v=self.v)
+        return _ocean.okubo_weiss(ds, u=self.u, v=self.v)
 
 
 class Enstrophy(Operator):
@@ -162,7 +96,7 @@ class Enstrophy(Operator):
         self.variable = variable
 
     def _apply(self, ds):
-        return _kinematics.enstrophy(ds, variable=self.variable)
+        return _ocean.enstrophy(ds, variable=self.variable)
 
     def get_config(self) -> dict[str, Any]:
         return {"variable": self.variable}
@@ -174,7 +108,7 @@ class CoriolisNormalized(Operator):
         self.f0 = f0
 
     def _apply(self, ds):
-        return _kinematics.coriolis_normalized(ds, variable=self.variable, f0=self.f0)
+        return _ocean.coriolis_normalized(ds, variable=self.variable, f0=self.f0)
 
     def get_config(self) -> dict[str, Any]:
         return {"variable": self.variable, "f0": self.f0}
@@ -187,7 +121,7 @@ class AgeostrophicVelocities(Operator):
         self.v = v
 
     def _apply(self, ds):
-        return _kinematics.ageostrophic_velocities(
+        return _ocean.ageostrophic_velocities(
             ds, variable=self.variable, u=self.u, v=self.v
         )
 
@@ -207,7 +141,7 @@ class Advection(Operator):
         self.dims = dims
 
     def _apply(self, ds):
-        return _kinematics.advection(
+        return _ocean.advection(
             ds, scalar=self.scalar, components=self.components, dims=self.dims
         )
 
@@ -221,12 +155,12 @@ class Advection(Operator):
 
 class ShearVorticity(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.shear_vorticity(ds, u=self.u, v=self.v)
+        return _ocean.shear_vorticity(ds, u=self.u, v=self.v)
 
 
 class CurvatureVorticity(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.curvature_vorticity(ds, u=self.u, v=self.v)
+        return _ocean.curvature_vorticity(ds, u=self.u, v=self.v)
 
 
 class Frontogenesis(Operator):
@@ -236,7 +170,7 @@ class Frontogenesis(Operator):
         self.v = v
 
     def _apply(self, ds):
-        return _kinematics.frontogenesis(ds, scalar=self.scalar, u=self.u, v=self.v)
+        return _ocean.frontogenesis(ds, scalar=self.scalar, u=self.u, v=self.v)
 
     def get_config(self) -> dict[str, Any]:
         return {"scalar": self.scalar, "u": self.u, "v": self.v}
@@ -249,7 +183,7 @@ class PotentialVorticityBarotropic(Operator):
         self.v = v
 
     def _apply(self, ds):
-        return _kinematics.potential_vorticity_barotropic(
+        return _ocean.potential_vorticity_barotropic(
             ds, height=self.height, u=self.u, v=self.v
         )
 
@@ -264,7 +198,7 @@ class VelocityMagnitude(Operator):
         self.w = w
 
     def _apply(self, ds):
-        return _kinematics.velocity_magnitude(ds, u=self.u, v=self.v, w=self.w)
+        return _ocean.velocity_magnitude(ds, u=self.u, v=self.v, w=self.w)
 
     def get_config(self) -> dict[str, Any]:
         return {"u": self.u, "v": self.v, "w": self.w}
@@ -272,7 +206,7 @@ class VelocityMagnitude(Operator):
 
 class HorizontalVelocityMagnitude(_UVOperator):
     def _apply(self, ds):
-        return _kinematics.horizontal_velocity_magnitude(ds, u=self.u, v=self.v)
+        return _ocean.horizontal_velocity_magnitude(ds, u=self.u, v=self.v)
 
 
 class EddyKineticEnergy(Operator):
@@ -281,9 +215,7 @@ class EddyKineticEnergy(Operator):
         self.v_anom = v_anom
 
     def _apply(self, ds):
-        return _kinematics.eddy_kinetic_energy(
-            ds, u_anom=self.u_anom, v_anom=self.v_anom
-        )
+        return _ocean.eddy_kinetic_energy(ds, u_anom=self.u_anom, v_anom=self.v_anom)
 
     def get_config(self) -> dict[str, Any]:
         return {"u_anom": self.u_anom, "v_anom": self.v_anom}
@@ -305,7 +237,7 @@ class BruntVaisalaFrequency(Operator):
         self.positive = positive
 
     def _apply(self, ds):
-        return _kinematics.brunt_vaisala_frequency(
+        return _ocean.brunt_vaisala_frequency(
             ds,
             density=self.density,
             depth=self.depth,
@@ -336,7 +268,7 @@ class LapseRate(Operator):
         self.positive = positive
 
     def _apply(self, ds):
-        return _kinematics.lapse_rate(
+        return _ocean.lapse_rate(
             ds,
             temperature=self.temperature,
             depth=self.depth,
@@ -365,7 +297,7 @@ class MixedLayerDepth(Operator):
         self.threshold = threshold
 
     def _apply(self, ds):
-        return _kinematics.mixed_layer_depth(
+        return _ocean.mixed_layer_depth(
             ds,
             density=self.density,
             depth=self.depth,
@@ -387,7 +319,6 @@ __all__ = [
     "Advection",
     "AgeostrophicVelocities",
     "BruntVaisalaFrequency",
-    "CalculateSSHAlongtrack",
     "CoriolisNormalized",
     "CurvatureVorticity",
     "Divergence",
@@ -407,7 +338,5 @@ __all__ = [
     "StrainMagnitude",
     "Streamfunction",
     "TensorStrain",
-    "ValidateSSH",
-    "ValidateVelocity",
     "VelocityMagnitude",
 ]

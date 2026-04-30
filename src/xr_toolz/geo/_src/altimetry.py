@@ -1,4 +1,9 @@
-"""Sea-surface height helpers."""
+"""Altimetry-product composition helpers.
+
+Compose along-track sea-surface height (SSH) from the standard
+altimetry-product variables — sea-level anomaly (SLA), mean dynamic
+topography (MDT), and the land-water-equivalent correction (LWE).
+"""
 
 from __future__ import annotations
 

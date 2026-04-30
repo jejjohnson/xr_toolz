@@ -20,6 +20,10 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
+from xr_toolz.geo._src.altimetry import (
+    calculate_ssh_alongtrack,
+    calculate_ssh_unfiltered,
+)
 from xr_toolz.geo._src.crs import (
     assign_crs,
     calc_latlon,
@@ -77,6 +81,8 @@ from xr_toolz.geo._src.validation import (
     rename_coords,
     validate_latitude,
     validate_longitude,
+    validate_ssh,
+    validate_velocity,
 )
 
 
@@ -161,6 +167,8 @@ __all__ = [
     "calculate_climatology",
     "calculate_climatology_season",
     "calculate_climatology_smoothed",
+    "calculate_ssh_alongtrack",
+    "calculate_ssh_unfiltered",
     "coarsen",
     "fillnan_rbf",
     "fillnan_spatial",
@@ -184,5 +192,7 @@ __all__ = [
     "subset_where",
     "validate_latitude",
     "validate_longitude",
+    "validate_ssh",
+    "validate_velocity",
     "xy_to_lonlat",
 ]
