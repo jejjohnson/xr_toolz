@@ -267,6 +267,57 @@ def test_vertical_presets_default_dim_names():
     assert "height" in out_h.dims
 
 
+def test_remap_axis_rejects_non_numeric_var_with_source_dim():
+    """A non-numeric variable carrying source_dim must raise (review feedback)."""
+    z = np.linspace(0.0, 100.0, 5)
+    ds = xr.Dataset(
+        {
+            "T": (("depth",), 20.0 - 0.1 * z),
+            "flag": (("depth",), np.array(["a", "b", "c", "d", "e"])),
+        },
+        coords={"depth": z},
+    )
+    with pytest.raises(TypeError, match="non-numeric"):
+        remap_axis(
+            ds,
+            source_dim="depth",
+            target_coords=np.linspace(0.0, 100.0, 11),
+        )
+
+
+def test_remap_axis_passes_through_non_dim_non_numeric_var():
+    z = np.linspace(0.0, 100.0, 5)
+    ds = xr.Dataset(
+        {
+            "T": (("depth",), 20.0 - 0.1 * z),
+            "label": ((), "site_42"),
+        },
+        coords={"depth": z},
+    )
+    out = remap_axis(ds, source_dim="depth", target_coords=np.linspace(0.0, 100.0, 11))
+    assert str(out["label"].values) == "site_42"
+
+
+def test_to_phase_requires_time_coord():
+    """Dataset must carry a coordinate named time_dim, not just a dimension."""
+    ds = xr.Dataset({"x": (("time",), np.zeros(10))})  # time has no coord
+    with pytest.raises(ValueError, match="coordinate named"):
+        to_phase(ds, time_dim="time", period=1.0, n_bins=8)
+
+
+def test_to_phase_rejects_non_numeric_var_with_time_dim():
+    t = np.arange(10, dtype=float)
+    ds = xr.Dataset(
+        {
+            "x": (("time",), np.zeros(10)),
+            "label": (("time",), np.array(["a"] * 10)),
+        },
+        coords={"time": t},
+    )
+    with pytest.raises(TypeError, match="non-numeric"):
+        to_phase(ds, time_dim="time", period=1.0, n_bins=8)
+
+
 def test_remap_axis_get_config_is_serializable():
     op = RemapAxis("depth", np.array([0.0, 50.0, 100.0]), target_name="z")
     cfg = op.get_config()

@@ -180,11 +180,11 @@ def test_calc_array_gradient_returns_per_axis() -> None:
 
 
 # ---------------------------------------------------------------------------
-# interpolate (smoothers — F3.3)
+# interpolate (Tier A array kernels — F3.2 / F3.3)
 # ---------------------------------------------------------------------------
 
 
-_SMOOTH_NAMES: tuple[str, ...] = (
+_INTERPOLATE_ARRAY_NAMES: tuple[str, ...] = (
     "moving_average",
     "gaussian_smooth",
     "lowpass_filter",
@@ -192,7 +192,7 @@ _SMOOTH_NAMES: tuple[str, ...] = (
 )
 
 
-@pytest.mark.parametrize("name", _SMOOTH_NAMES)
+@pytest.mark.parametrize("name", _INTERPOLATE_ARRAY_NAMES)
 def test_interpolate_array_namespace_exports(name: str) -> None:
     """Tier A is reachable via ``xr_toolz.interpolate.array``."""
     from xr_toolz.interpolate import array as ia

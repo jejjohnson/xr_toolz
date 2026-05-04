@@ -58,9 +58,19 @@ def remap_axis(
 
     out_vars: dict[str, xr.DataArray] = {}
     for name, da in ds.data_vars.items():
-        if source_dim not in da.dims or not np.issubdtype(da.dtype, np.number):
+        if source_dim not in da.dims:
+            # Variable doesn't depend on the source axis — pass through.
             out_vars[str(name)] = da
             continue
+        if not np.issubdtype(da.dtype, np.number):
+            # A non-numeric variable that depends on source_dim cannot be
+            # interpolated; passing it through would leave the output with a
+            # phantom source_dim axis (and possibly incompatible sizes).
+            raise TypeError(
+                f"variable {name!r} carries source_dim {source_dim!r} but has "
+                f"non-numeric dtype {da.dtype}; drop or convert it before "
+                "calling remap_axis"
+            )
         axis = da.get_axis_num(source_dim)
         new_values = _array.remap_axis(
             da.values,
@@ -110,6 +120,10 @@ def to_phase(
     """
     if time_dim not in ds.dims:
         raise ValueError(f"time_dim {time_dim!r} not in Dataset dims {tuple(ds.dims)}")
+    if time_dim not in ds.coords:
+        raise ValueError(
+            f"Dataset must carry a coordinate named {time_dim!r} to compute phase"
+        )
     if period <= 0:
         raise ValueError(f"period must be > 0, got {period}")
     if n_bins < 1:
@@ -123,9 +137,15 @@ def to_phase(
 
     out_vars: dict[str, xr.DataArray] = {}
     for name, da in ds.data_vars.items():
-        if time_dim not in da.dims or not np.issubdtype(da.dtype, np.number):
+        if time_dim not in da.dims:
             out_vars[str(name)] = da
             continue
+        if not np.issubdtype(da.dtype, np.number):
+            raise TypeError(
+                f"variable {name!r} carries time_dim {time_dim!r} but has "
+                f"non-numeric dtype {da.dtype}; drop or convert it before "
+                "calling to_phase"
+            )
         axis = da.get_axis_num(time_dim)
         moved = np.moveaxis(da.values, axis, 0)
         flat = moved.reshape(moved.shape[0], -1)
