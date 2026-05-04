@@ -88,6 +88,6 @@ def test_legacy_geo_operator_names_are_gone() -> None:
 
 
 def test_placeholder_submodules_importable() -> None:
-    for sub in ("downscale", "grid_to_points"):
+    for sub in ("grid_to_points",):
         mod = importlib.import_module(f"xr_toolz.interpolate._src.{sub}")
         assert mod.__all__ == []
