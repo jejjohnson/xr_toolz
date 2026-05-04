@@ -18,6 +18,7 @@ from xr_toolz.interpolate._src import (
     grid_to_grid as _grid_to_grid,
     points_to_grid as _points_to_grid,
     resample as _resample,
+    smooth as _smooth,
 )
 
 
@@ -233,13 +234,108 @@ class PointsToGrid(Operator):
         return {"grid": "<Grid>", "statistic": self.statistic}
 
 
+# ---------- smoothers ------------------------------------------------------
+
+
+class MovingAverage(Operator):
+    """Wrap :func:`xr_toolz.interpolate._src.smooth.moving_average`."""
+
+    def __init__(
+        self,
+        dim: str,
+        window: int,
+        *,
+        center: bool = True,
+        min_periods: int | None = None,
+    ):
+        if window < 1:
+            raise ValueError(f"window must be >= 1, got {window}")
+        self.dim = dim
+        self.window = int(window)
+        self.center = bool(center)
+        self.min_periods = min_periods
+
+    def _apply(self, ds):
+        return _smooth.moving_average(
+            ds,
+            dim=self.dim,
+            window=self.window,
+            center=self.center,
+            min_periods=self.min_periods,
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "dim": self.dim,
+            "window": self.window,
+            "center": self.center,
+            "min_periods": self.min_periods,
+        }
+
+
+class GaussianSmooth(Operator):
+    """Wrap :func:`xr_toolz.interpolate._src.smooth.gaussian_smooth`."""
+
+    def __init__(self, dim: str, sigma: float, *, truncate: float = 4.0):
+        if sigma <= 0:
+            raise ValueError(f"sigma must be > 0, got {sigma}")
+        self.dim = dim
+        self.sigma = float(sigma)
+        self.truncate = float(truncate)
+
+    def _apply(self, ds):
+        return _smooth.gaussian_smooth(
+            ds, dim=self.dim, sigma=self.sigma, truncate=self.truncate
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {"dim": self.dim, "sigma": self.sigma, "truncate": self.truncate}
+
+
+class LowpassFilter(Operator):
+    """Wrap :func:`xr_toolz.interpolate._src.smooth.lowpass_filter`."""
+
+    def __init__(
+        self,
+        dim: str,
+        cutoff: float,
+        *,
+        order: int = 4,
+        btype: str = "low",
+    ):
+        self.dim = dim
+        self.cutoff = float(cutoff)
+        self.order = int(order)
+        self.btype = btype
+
+    def _apply(self, ds):
+        return _smooth.lowpass_filter(
+            ds,
+            dim=self.dim,
+            cutoff=self.cutoff,
+            order=self.order,
+            btype=self.btype,
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "dim": self.dim,
+            "cutoff": self.cutoff,
+            "order": self.order,
+            "btype": self.btype,
+        }
+
+
 __all__ = [
     "Bin2D",
     "Coarsen",
     "FillNaNRBF",
     "FillNaNSpatial",
     "FillNaNTemporal",
+    "GaussianSmooth",
     "Histogram2D",
+    "LowpassFilter",
+    "MovingAverage",
     "PointsToGrid",
     "Refine",
     "ResampleTime",
