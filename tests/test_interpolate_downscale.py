@@ -87,7 +87,10 @@ def test_target_grid_attribute_is_carried(coarse_ds):
     assert op.target_grid is grid
 
 
-def test_get_config_is_serializable(coarse_ds):
+def test_get_config_round_trips_through_json(coarse_ds):
+    """Config must survive ``json.dumps``/``loads`` so it stays serializable."""
+    import json
+
     fine_lon = np.linspace(0.0, 10.0, 21)
     fine_lat = np.linspace(-5.0, 5.0, 21)
     op = Downscale(
@@ -95,24 +98,48 @@ def test_get_config_is_serializable(coarse_ds):
         target_grid=xr.Dataset(coords={"lat": fine_lat, "lon": fine_lon}),
     )
     cfg = op.get_config()
-    assert set(cfg) == {"model", "target_grid"}
-    assert isinstance(cfg["model"], str)
-    assert cfg["target_grid"] == "<grid>"
+    round_tripped = json.loads(json.dumps(cfg))
+    assert round_tripped == cfg
+    assert round_tripped["target_grid"] == "<grid>"
+    assert isinstance(round_tripped["model"], str)
 
 
 def test_no_top_level_jax_or_torch_import():
-    """Per D4, the downscale module must not import JAX or torch."""
+    """Per D4, the downscale module must not import JAX or torch.
+
+    Run the import in a fresh subprocess so the result is independent of
+    test ordering — other tests (e.g. ``test_inference_jax``) may have
+    already pulled JAX into ``sys.modules`` of the parent process.
+    """
+    import subprocess
     import sys
 
-    # Simply importing our module should not pull in jax/torch transitively.
-    from xr_toolz.interpolate._src import downscale  # noqa: F401
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys\n"
+                "import xr_toolz.interpolate._src.downscale  # noqa: F401\n"
+                "for name in ('jax', 'jaxlib', 'torch'):\n"
+                "    if name in sys.modules:\n"
+                "        print(name)\n"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    leaked = [n for n in result.stdout.strip().splitlines() if n]
+    assert leaked == [], f"backend leaked into sys.modules: {leaked}"
 
-    assert "jax" not in sys.modules
-    assert "torch" not in sys.modules
 
+def test_works_with_arbitrary_operator(coarse_ds):
+    """Downscale composes with any Operator (duck-typed callable).
 
-def test_works_with_modelop_subclass(coarse_ds):
-    """Downscale composes with any Operator (duck-typed callable)."""
+    The wrapped object doesn't have to be a ``ModelOp`` — any Operator
+    or plain callable works.
+    """
     from xr_toolz.core import Operator
 
     class TinyResize(Operator):

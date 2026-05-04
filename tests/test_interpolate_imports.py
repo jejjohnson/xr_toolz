@@ -31,13 +31,25 @@ CANONICAL_FUNCS = (
 CANONICAL_OPS = (
     "Bin2D",
     "Coarsen",
+    "Downscale",
     "FillNaNRBF",
     "FillNaNSpatial",
     "FillNaNTemporal",
+    "FromSigma",
+    "GaussianSmooth",
     "Histogram2D",
+    "LowpassFilter",
+    "MovingAverage",
     "PointsToGrid",
     "Refine",
+    "RemapAxis",
     "ResampleTime",
+    "ToHeight",
+    "ToIsopycnal",
+    "ToPhase",
+    "ToPressureLevels",
+    "ToSigma",
+    "Upscale",
 )
 
 REMOVED_FROM_GEO = (
