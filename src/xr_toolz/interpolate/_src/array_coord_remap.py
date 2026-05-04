@@ -5,13 +5,24 @@ Per design decision D11, every arithmetic submodule grows a duck-array
 1D coordinate vector to a target 1D coordinate vector along a chosen
 axis, preserving all other dimensions.
 
-Backend: numpy. Methods: ``"linear"`` (np.interp), ``"nearest"``.
+Backend: numpy. Methods: ``"linear"`` (np.interp on real/imag parts
+independently), ``"nearest"``.
 """
 
 from __future__ import annotations
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+
+
+def _as_floating(arr: ArrayLike) -> np.ndarray:
+    """Cast to a floating dtype while preserving complex inputs."""
+    a = np.asarray(arr)
+    if np.issubdtype(a.dtype, np.complexfloating):
+        return a if a.dtype == np.complex128 else a.astype(np.complex128)
+    if np.issubdtype(a.dtype, np.floating):
+        return a
+    return a.astype(np.float64)
 
 
 def remap_axis(
@@ -21,19 +32,21 @@ def remap_axis(
     source_coords: ArrayLike,
     target_coords: ArrayLike,
     method: str = "linear",
-) -> NDArray[np.floating]:
+) -> NDArray:
     """Interpolate values along ``axis`` from ``source_coords`` to ``target_coords``.
 
     Parameters
     ----------
     values
         Array with one axis whose length matches ``source_coords``.
+        Real or complex; complex inputs are interpolated component-wise.
     axis
         Axis to remap along.
     source_coords
         1D monotonic (ascending or descending) coordinate vector.
     target_coords
-        1D coordinate vector to interpolate to.
+        1D coordinate vector to interpolate to. Targets outside the
+        source range or equal to ``NaN`` produce ``NaN`` in the output.
     method
         ``"linear"`` or ``"nearest"``.
 
@@ -41,10 +54,9 @@ def remap_axis(
     -------
     NDArray
         Same shape as ``values`` except along ``axis``, which is
-        replaced by ``len(target_coords)``. Targets outside the source
-        range produce NaN (no extrapolation).
+        replaced by ``len(target_coords)``.
     """
-    arr = np.asarray(values, dtype=float)
+    arr = _as_floating(values)
     src = np.asarray(source_coords, dtype=float)
     tgt = np.asarray(target_coords, dtype=float)
 
@@ -70,15 +82,34 @@ def remap_axis(
         moved = moved[..., ::-1]
 
     flat = moved.reshape(-1, src.size)
-    out = np.empty((flat.shape[0], tgt.size), dtype=float)
+    is_complex = np.iscomplexobj(flat)
+    out_dtype = flat.dtype if is_complex else float
+    out = np.empty((flat.shape[0], tgt.size), dtype=out_dtype)
+
+    # Identify NaN targets up front; numpy.interp/searchsorted have
+    # surprising behavior on NaN inputs (np.interp returns the right-hand
+    # fill value, argmin/searchsorted treat NaN as larger than any
+    # number), so we mask them out and assign NaN explicitly.
+    nan_target = np.isnan(tgt)
 
     if method == "linear":
-        for i in range(flat.shape[0]):
-            out[i] = np.interp(tgt, src, flat[i], left=np.nan, right=np.nan)
+        if is_complex:
+            for i in range(flat.shape[0]):
+                real = np.interp(tgt, src, flat[i].real, left=np.nan, right=np.nan)
+                imag = np.interp(tgt, src, flat[i].imag, left=np.nan, right=np.nan)
+                out[i] = real + 1j * imag
+        else:
+            for i in range(flat.shape[0]):
+                out[i] = np.interp(tgt, src, flat[i], left=np.nan, right=np.nan)
+        if nan_target.any():
+            out[:, nan_target] = np.nan
     elif method == "nearest":
-        idx = np.abs(src[None, :] - tgt[:, None]).argmin(axis=1)  # (M,)
+        # Replace NaN targets with a sentinel so argmin is well-defined;
+        # we'll mask the result back to NaN below.
+        safe_tgt = np.where(nan_target, src.min(), tgt)
+        idx = np.abs(src[None, :] - safe_tgt[:, None]).argmin(axis=1)  # (M,)
         out[:] = flat[:, idx]
-        oor = (tgt < src.min()) | (tgt > src.max())
+        oor = (tgt < src.min()) | (tgt > src.max()) | nan_target
         if oor.any():
             out[:, oor] = np.nan
     else:

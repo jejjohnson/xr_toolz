@@ -130,7 +130,8 @@ def to_phase(
         raise ValueError(f"n_bins must be >= 1, got {n_bins}")
 
     t = np.asarray(ds[time_dim].values, dtype=float)
-    phase = ((t - epoch) / period) % 1.0
+    finite_t = np.isfinite(t)
+    phase = np.where(finite_t, ((t - epoch) / period) % 1.0, 0.0)
     edges = np.linspace(0.0, 1.0, n_bins + 1)
     centers = 0.5 * (edges[:-1] + edges[1:])
     bin_idx = np.clip(np.searchsorted(edges, phase, side="right") - 1, 0, n_bins - 1)
@@ -149,19 +150,35 @@ def to_phase(
         axis = da.get_axis_num(time_dim)
         moved = np.moveaxis(da.values, axis, 0)
         flat = moved.reshape(moved.shape[0], -1)
-        sums = np.zeros((n_bins, flat.shape[1]), dtype=float)
+        # Use a complex accumulator if the data is complex so the
+        # imaginary part isn't dropped (P1 review).
+        is_complex = np.iscomplexobj(flat)
+        acc_dtype = np.complex128 if is_complex else float
+        sums = np.zeros((n_bins, flat.shape[1]), dtype=acc_dtype)
         counts = np.zeros((n_bins, flat.shape[1]), dtype=float)
-        valid = ~np.isnan(flat)
+        # A sample is valid only if its time coord is finite AND every
+        # data value is finite. Excluding NaN-time rows keeps stale rows
+        # out of the phase means (P2 review).
+        valid_value = (
+            ~np.isnan(flat)
+            if not is_complex
+            else (~np.isnan(flat.real) & ~np.isnan(flat.imag))
+        )
+        valid = finite_t[:, None] & valid_value
         for b in range(n_bins):
-            m = bin_idx == b
+            m = (bin_idx == b) & finite_t
             if not m.any():
                 continue
             sub = flat[m]
             sub_valid = valid[m]
-            sums[b] = np.where(sub_valid, sub, 0.0).sum(axis=0)
+            zero = acc_dtype(0)
+            sums[b] = np.where(sub_valid, sub, zero).sum(axis=0)
             counts[b] = sub_valid.sum(axis=0)
         with np.errstate(invalid="ignore"):
-            mean = np.where(counts > 0, sums / counts, np.nan)
+            nan_fill = (np.nan + 0j) if is_complex else np.nan
+            mean = np.where(
+                counts > 0, sums / np.where(counts > 0, counts, 1.0), nan_fill
+            )
         out_shape = (n_bins, *moved.shape[1:])
         new_values = mean.reshape(out_shape)
         new_values = np.moveaxis(new_values, 0, axis)

@@ -318,6 +318,74 @@ def test_to_phase_rejects_non_numeric_var_with_time_dim():
         to_phase(ds, time_dim="time", period=1.0, n_bins=8)
 
 
+def test_array_remap_preserves_complex_dtype():
+    """Complex inputs must not silently lose their imaginary component."""
+    src = np.linspace(0.0, 1.0, 11)
+    z = src + 1j * src**2
+    tgt = np.array([0.25, 0.5, 0.75])
+    out = ia.remap_axis(z, axis=-1, source_coords=src, target_coords=tgt)
+    assert np.iscomplexobj(out)
+    np.testing.assert_allclose(out.real, tgt, atol=1e-12)
+    # Linear interpolation of x^2 incurs O(h^2) discretization error.
+    np.testing.assert_allclose(out.imag, tgt**2, atol=5e-3)
+
+
+def test_array_remap_nan_target_returns_nan_linear():
+    src = np.linspace(0.0, 1.0, 5)
+    out = ia.remap_axis(
+        np.arange(5, dtype=float),
+        axis=-1,
+        source_coords=src,
+        target_coords=np.array([0.5, np.nan, 0.75]),
+    )
+    assert not np.isnan(out[0])
+    assert np.isnan(out[1])
+    assert not np.isnan(out[2])
+
+
+def test_array_remap_nan_target_returns_nan_nearest():
+    src = np.linspace(0.0, 1.0, 5)
+    out = ia.remap_axis(
+        np.arange(5, dtype=float),
+        axis=-1,
+        source_coords=src,
+        target_coords=np.array([0.1, np.nan, 0.9]),
+        method="nearest",
+    )
+    assert np.isnan(out[1])
+    assert not np.isnan(out[0])
+    assert not np.isnan(out[2])
+
+
+def test_to_phase_preserves_complex_signal():
+    """Complex time series must fold without dropping the imaginary part."""
+    period = 24.0
+    # Sample much finer than the bin width so the per-bin mean is
+    # close to ``exp(i 2π * bin_center)``.
+    n_per_period = 240
+    n = n_per_period * 30
+    t = np.arange(n, dtype=float) * (period / n_per_period)
+    z = np.exp(1j * 2 * np.pi * t / period)
+    ds = xr.Dataset({"z": (("time",), z)}, coords={"time": t})
+    out = to_phase(ds, time_dim="time", period=period, n_bins=24)
+    assert np.iscomplexobj(out["z"].values)
+    phases = out["phase"].values
+    expected = np.exp(1j * 2 * np.pi * phases)
+    np.testing.assert_allclose(out["z"].values, expected, atol=0.05)
+
+
+def test_to_phase_drops_nan_time_samples():
+    """Samples with NaN time must not contribute to phase-bin means."""
+    period = 1.0
+    t = np.array([0.1, 0.2, np.nan, 0.6, 0.7])
+    # Bin 0 should average (10, 20); bin 1 (60, 70). The NaN-time sample
+    # has value 1000 — if it leaked into a bin, the mean would explode.
+    values = np.array([10.0, 20.0, 1000.0, 60.0, 70.0])
+    ds = xr.Dataset({"x": (("time",), values)}, coords={"time": t})
+    out = to_phase(ds, time_dim="time", period=period, n_bins=2)
+    np.testing.assert_allclose(out["x"].values, [15.0, 65.0])
+
+
 def test_remap_axis_get_config_is_serializable():
     op = RemapAxis("depth", np.array([0.0, 50.0, 100.0]), target_name="z")
     cfg = op.get_config()
