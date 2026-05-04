@@ -35,6 +35,7 @@ dependencies = [
     "numpy-groupies>=0.11",
     "finitediffx>=0.1.0",
     "scikit-image>=0.22",
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
