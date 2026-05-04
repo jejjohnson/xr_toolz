@@ -1,13 +1,14 @@
 """Grid-to-grid value resampling.
 
-Deterministic refinement (:func:`refine`) and aggregation
-(:func:`coarsen`) along one or more dimensions. Learned counterparts
+Deterministic refinement (:func:`refine`), aggregation
+(:func:`coarsen`), and target-grid resampling (:func:`regrid_like`)
+along one or more dimensions. Learned counterparts
 (``Downscale``/``Upscale``) live in :mod:`.downscale`.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 import numpy as np
 import xarray as xr
@@ -44,3 +45,26 @@ def refine(
             raise ValueError(f"refinement factor for {dim!r} must be positive.")
         new_coords[dim] = np.linspace(old.min(), old.max(), (len(old) - 1) * f + 1)
     return ds.interp(new_coords, method=method)
+
+
+def regrid_like(
+    ds: xr.Dataset | xr.DataArray,
+    target: xr.Dataset | xr.DataArray,
+    *,
+    dims: Iterable[str] = ("lat", "lon"),
+    method: str = "linear",
+) -> xr.Dataset | xr.DataArray:
+    """Resample ``ds`` onto ``target``'s coordinates along ``dims``.
+
+    Thin :meth:`xr.Dataset.interp` wrapper for the common
+    "regrid model output to observation grid" step. Coordinates listed
+    in ``dims`` must exist on both ``ds`` and ``target``; values along
+    other dims pass through.
+    """
+    target_coords = {d: target[d] for d in dims if d in target.coords}
+    if not target_coords:
+        raise ValueError(
+            f"target has none of the requested dims {tuple(dims)} as coords; "
+            f"got coords {tuple(target.coords)}."
+        )
+    return ds.interp(target_coords, method=method)

@@ -62,6 +62,10 @@ nav:
   - Tutorials:
       - Core:
           - Operators & Pipelines: notebooks/operators_pipeline_demo.ipynb
+      - Validation:
+          - V1 — Scales of Evaluation: notebooks/validation_v1_scales.ipynb
+          - V4 — Process Evaluation: notebooks/validation_v4_process.ipynb
+          - V6 — Capstone: notebooks/validation_v6_capstone.ipynb
       - Data — CMEMS:
           - SST Products: notebooks/cmems_sst_products.ipynb
           - SSS Products: notebooks/cmems_sss_products.ipynb
