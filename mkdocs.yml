@@ -64,6 +64,7 @@ nav:
           - Operators & Pipelines: notebooks/operators_pipeline_demo.ipynb
       - Validation:
           - V1 — Scales of Evaluation: notebooks/validation_v1_scales.ipynb
+          - V2 — Data Representation: notebooks/validation_v2_data_representation.ipynb
           - V4 — Process Evaluation: notebooks/validation_v4_process.ipynb
           - V6 — Capstone: notebooks/validation_v6_capstone.ipynb
       - Data — CMEMS:
