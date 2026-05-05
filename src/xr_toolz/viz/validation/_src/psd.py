@@ -20,7 +20,7 @@ import numpy as np
 import xarray as xr
 from matplotlib import colors
 
-from xr_toolz.metrics._src.spectral import find_intercept_1D
+from xr_toolz.metrics import find_intercept_1D
 from xr_toolz.viz.validation._src.base import _NullContext, _ValidationPanel
 
 
@@ -239,6 +239,11 @@ class PSDIsotropicScorePanel(_PSDPanelBase):
         score_var: Variable name when input is a Dataset. Default
             ``"score"``.
         show_wavelength: Toggle the twin axis.
+        resolved_units: Unit string used in the resolved-scale legend
+            text. ``None`` (default) parses it from the trailing
+            ``[unit]`` of ``wavelength_label`` (e.g.
+            ``"Wavelength [km]"`` → ``"km"``); empty string suppresses
+            the unit.
     """
 
     def __init__(
@@ -252,6 +257,7 @@ class PSDIsotropicScorePanel(_PSDPanelBase):
         ylabel: str = "PSD score",
         score_var: str = "score",
         show_wavelength: bool = True,
+        resolved_units: str | None = None,
         **kw: Any,
     ) -> None:
         super().__init__(**kw)
@@ -263,9 +269,24 @@ class PSDIsotropicScorePanel(_PSDPanelBase):
         self.ylabel = ylabel
         self.score_var = score_var
         self.show_wavelength = show_wavelength
+        # Units string for the resolved-scale legend. If unset, parsed
+        # from the trailing ``[unit]`` of ``wavelength_label`` (so
+        # ``"Wavelength [km]"`` → ``"km"``); falls back to empty.
+        self.resolved_units = resolved_units
 
     def _default_title(self) -> str:
         return "Isotropic PSD Score"
+
+    def _resolve_units(self) -> str:
+        if self.resolved_units is not None:
+            return self.resolved_units
+        # Parse trailing "[unit]" from wavelength_label.
+        import re
+
+        match = re.search(r"\[([^\]]+)\]", self.wavelength_label)
+        if match and match.group(1) != "units":
+            return match.group(1)
+        return ""
 
     def _build(
         self,
@@ -297,11 +318,13 @@ class PSDIsotropicScorePanel(_PSDPanelBase):
                         level=self.threshold,
                     )
                     if np.isfinite(resolved) and resolved > 0:
+                        units = self._resolve_units()
+                        suffix = f" {units}" if units else ""
                         ax.axvline(
                             1.0 / (resolved * self.space_scale),
                             color="C3",
                             linestyle=":",
-                            label=f"Resolved scale ≈ {resolved:.0f} km",
+                            label=f"Resolved scale ≈ {resolved:.0f}{suffix}",
                         )
                         ax.legend(loc="best")
                 except (ValueError, RuntimeError):
@@ -330,15 +353,18 @@ class PSDIsotropicScorePanel(_PSDPanelBase):
             "ylabel": self.ylabel,
             "score_var": self.score_var,
             "show_wavelength": self.show_wavelength,
+            "resolved_units": self.resolved_units,
         }
 
 
 class PSDSpaceTimePanel(_PSDPanelBase):
     """2-D space-time PSD with log-norm color scale.
 
-    Renders ``log10`` magnitude as a ``pcolormesh`` over
-    ``(freq_space, freq_time)``, with optional twin axes converting to
-    wavelength and period.
+    Renders ``|PSD|`` as a ``pcolormesh`` over
+    ``(freq_space, freq_time)`` with a :class:`matplotlib.colors.LogNorm`
+    colour scale, with optional twin axes converting to wavelength and
+    period. Non-positive cells are masked before normalisation so
+    ``LogNorm`` can't trip on zeros.
 
     Args:
         freq_space_dim: Spatial-frequency dim. Default ``"freq_lon"``.
@@ -351,7 +377,7 @@ class PSDSpaceTimePanel(_PSDPanelBase):
         period_label: Right-axis label.
         wavenumber_label: Bottom-axis label.
         frequency_label: Left-axis label.
-        cmap: Colormap. Default ``"RdBu_r"``.
+        cmap: Colormap. Default ``"RdYlBu_r"``.
         vmin: Optional log-norm lower limit.
         vmax: Optional log-norm upper limit.
         show_dual_axes: Toggle wavelength + period twin axes.
@@ -414,8 +440,15 @@ class PSDSpaceTimePanel(_PSDPanelBase):
         fs = np.asarray(da[self.freq_space_dim].values)
         ft = np.asarray(da[self.freq_time_dim].values)
         vals = np.abs(np.asarray(da.values))
-        norm = colors.LogNorm(vmin=self.vmin, vmax=self.vmax)
-        im = ax.pcolormesh(fs, ft, vals, cmap=self.cmap, norm=norm, shading="auto")
+        # Mask non-positive cells so LogNorm autoscaling can't see vmin <= 0.
+        vals_masked = np.ma.masked_where(~np.isfinite(vals) | (vals <= 0), vals)
+        vmin = self.vmin
+        if vmin is None and vals_masked.count():
+            vmin = float(vals_masked.min())
+        norm = colors.LogNorm(vmin=vmin, vmax=self.vmax)
+        im = ax.pcolormesh(
+            fs, ft, vals_masked, cmap=self.cmap, norm=norm, shading="auto"
+        )
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel(self.wavenumber_label)

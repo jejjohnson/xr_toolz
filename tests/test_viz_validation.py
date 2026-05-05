@@ -311,49 +311,43 @@ def test_viz_validation_top_level_imports():
 
 @pytest.fixture
 def _psd_fixtures():
-    """Build small realistic PSD/score fixtures from the GLORYS cache.
-
-    Skips if the cache is missing — these tests are meant to exercise
-    the panels against real spectra, not synthetic input.
-    """
-    from pathlib import Path
-
+    """Build small synthetic PSD / score fixtures via real `power_spectrum`
+    + `psd_score` over a random Gaussian field — no cache dependency, so
+    the tests run on a fresh clone / in CI."""
     import scipy.ndimage as ndi
 
     from xr_toolz.metrics import psd_score
     from xr_toolz.transforms import power_spectrum
 
-    cache = Path(__file__).resolve().parents[1] / ".cache"
-    g_path = cache / "glorys12_north_atlantic_2023-06.nc"
-    if not g_path.exists():
-        pytest.skip("North Atlantic GLORYS cache missing — see notebook for rebuild.")
-
-    g = xr.open_dataset(g_path)["zos"].rename({"latitude": "lat", "longitude": "lon"})
-    # Subsample for test speed (every 4th cell in space, every 3rd day).
-    g = g.isel(
-        time=slice(None, None, 3), lat=slice(None, None, 4), lon=slice(None, None, 4)
+    rng = np.random.default_rng(0)
+    n_t, n_lat, n_lon = 16, 24, 32
+    lon = np.linspace(-70.0, -50.0, n_lon, dtype=np.float64)
+    lat = np.linspace(30.0, 45.0, n_lat, dtype=np.float64)
+    time = np.arange(n_t, dtype=np.float64)
+    truth = xr.DataArray(
+        ndi.gaussian_filter(
+            rng.standard_normal((n_t, n_lat, n_lon)), sigma=(0, 1.5, 1.5)
+        ),
+        coords={"time": time, "lat": lat, "lon": lon},
+        dims=("time", "lat", "lon"),
+        name="zos",
     )
-
-    t = g["time"].values
-    days = (t - t[0]) / np.timedelta64(1, "D")
-    g = g.assign_coords(time=days.astype("float64"))
-    g_a = (g - g.mean(("lat", "lon"))).fillna(0.0)
-    s = xr.apply_ufunc(
-        lambda a: ndi.gaussian_filter(a, sigma=(0, 2.0, 2.0)), g_a
+    pred = xr.apply_ufunc(
+        lambda a: ndi.gaussian_filter(a, sigma=(0, 2.5, 2.5)), truth
     ).rename("zos")
 
-    iso = power_spectrum(g_a, dim=("lon", "lat"), isotropic=True).mean("time")
+    iso = power_spectrum(truth, dim=("lon", "lat"), isotropic=True).mean("time")
     iso_score = psd_score(
-        s.to_dataset(name="zos"),
-        g_a.to_dataset(name="zos"),
+        pred.to_dataset(name="zos"),
+        truth.to_dataset(name="zos"),
         "zos",
         psd_dims=("lon", "lat"),
         isotropic=True,
     ).mean("time")
-    st = power_spectrum(g_a, dim=("lon", "time")).mean("lat")
+    st = power_spectrum(truth, dim=("lon", "time")).mean("lat")
     st_score = psd_score(
-        s.to_dataset(name="zos"),
-        g_a.to_dataset(name="zos"),
+        pred.to_dataset(name="zos"),
+        truth.to_dataset(name="zos"),
         "zos",
         psd_dims=("lon", "time"),
         avg_dims=("lat",),
@@ -455,6 +449,60 @@ def test_panel_show_default_does_not_call_pyplot_show(monkeypatch):
     monkeypatch.setattr(plt, "show", lambda *a, **kw: calls.update(n=calls["n"] + 1))
     LeadTimeSkillPanel()(da)
     assert calls["n"] == 0
+
+
+def test_psd_iso_score_resolved_units_parsed_from_label(_psd_fixtures):
+    """Resolved-scale legend uses units parsed from wavelength_label."""
+    panel = PSDIsotropicScorePanel(
+        freq_dim="freq_r",
+        space_scale=1.0 / 111.0,
+        wavelength_label="Wavelength [km]",
+    )
+    fig = panel(_psd_fixtures["iso_score"])
+    legend = fig.axes[0].get_legend()
+    if legend is not None:  # only present when threshold is crossed
+        labels = [t.get_text() for t in legend.get_texts()]
+        assert any(lab.endswith(" km") for lab in labels)
+
+
+def test_psd_iso_score_resolved_units_explicit_override(_psd_fixtures):
+    panel = PSDIsotropicScorePanel(
+        freq_dim="freq_r",
+        space_scale=1.0,
+        wavelength_label="Wavelength [m]",
+        resolved_units="metres",
+    )
+    fig = panel(_psd_fixtures["iso_score"])
+    legend = fig.axes[0].get_legend()
+    if legend is not None:
+        labels = [t.get_text() for t in legend.get_texts()]
+        assert any("metres" in lab for lab in labels)
+
+
+def test_psd_space_time_panel_handles_zero_psd_cells(_psd_fixtures):
+    """LogNorm autoscale must not trip on zero or non-finite PSD cells."""
+    st = _psd_fixtures["st"].copy()
+    # Inject zeros + NaNs at a few cells to exercise the masking path.
+    arr = st.values.copy()
+    arr[0, 0] = 0.0
+    arr[0, 1] = np.nan
+    st.values[...] = arr
+    fig = PSDSpaceTimePanel(
+        freq_space_dim="freq_lon",
+        freq_time_dim="freq_time",
+        space_scale=1.0 / 111.0,
+        time_scale=1.0,
+    )(st)
+    assert isinstance(fig, mpl_figure.Figure)
+
+
+def test_panel_savefig_creates_parent_dirs(tmp_path):
+    """savefig= path with missing parent dirs auto-creates them."""
+    da = xr.DataArray(np.arange(4.0), dims=("lead_time",), name="rmse")
+    out = tmp_path / "deep" / "nested" / "skill.png"
+    fig = LeadTimeSkillPanel(savefig=out)(da)
+    assert isinstance(fig, mpl_figure.Figure)
+    assert out.exists() and out.stat().st_size > 0
 
 
 def test_psd_panel_savefig_writes_file(tmp_path, _psd_fixtures):

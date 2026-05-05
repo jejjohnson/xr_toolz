@@ -28,10 +28,12 @@ class _ValidationPanel(Operator):
             ``None`` keeps the active rcParams.
         title: Optional panel title; defaults to a class-specific
             string set in :meth:`_default_title`.
-        savefig: Optional output path. When set, the figure is saved
-            via :meth:`matplotlib.figure.Figure.savefig` after
-            rendering. Accepts any path-like (local or
-            ``fsspec``/``cloudpathlib`` URL string). Default ``None``.
+        savefig: Optional local output path. When set, the figure is
+            saved via :meth:`matplotlib.figure.Figure.savefig` after
+            rendering and parent directories are created if missing.
+            Cloud / remote paths aren't handled directly — open a
+            file-like object yourself and pass it via ``savefig_kwargs``
+            if you need that. Default ``None``.
         savefig_kwargs: Forwarded to ``Figure.savefig`` (e.g.
             ``{"dpi": 200, "bbox_inches": "tight"}``). Default ``None``.
         show: When ``True``, call :func:`matplotlib.pyplot.show` after
@@ -101,6 +103,15 @@ class _ValidationPanel(Operator):
     def _maybe_save(self, fig: mpl_figure.Figure) -> None:
         if self.savefig is None:
             return
+        # Create parent dirs for local paths so callers don't have to.
+        # Wrap in try/except so non-path-like savefig values (e.g. an
+        # open file handle) don't trip Path coercion.
+        try:
+            parent = Path(self.savefig).expanduser().parent
+            if str(parent) and not parent.exists():
+                parent.mkdir(parents=True, exist_ok=True)
+        except (TypeError, OSError):
+            pass
         fig.savefig(self.savefig, **self.savefig_kwargs)
 
     def _maybe_show(self, fig: mpl_figure.Figure) -> None:
