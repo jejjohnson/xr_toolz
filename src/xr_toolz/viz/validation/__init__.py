@@ -30,6 +30,7 @@ from xr_toolz.viz.validation._src.scales import (
     ScaleSkillPanel,
     SpectralSkillPanel,
 )
+from xr_toolz.viz.validation._src.spatial import SpatialMapPanel
 
 
 __all__ = [
@@ -42,6 +43,7 @@ __all__ = [
     "PSDSpaceTimeScorePanel",
     "ProcessBudgetPanel",
     "ScaleSkillPanel",
+    "SpatialMapPanel",
     "SpectralSkillPanel",
     "method_palette",
 ]
