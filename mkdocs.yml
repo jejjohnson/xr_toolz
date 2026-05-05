@@ -64,6 +64,7 @@ nav:
           - Operators & Pipelines: notebooks/operators_pipeline_demo.ipynb
       - Validation:
           - V1 — Scales of Evaluation: notebooks/validation_v1_scales.ipynb
+          - V1.5 — PSD Plots & Resolved Scale: notebooks/validation_v1_psd_plots.ipynb
           - V2 — Data Representation: notebooks/validation_v2_data_representation.ipynb
           - V4 — Process Evaluation: notebooks/validation_v4_process.ipynb
           - V6 — Capstone: notebooks/validation_v6_capstone.ipynb
@@ -87,6 +88,7 @@ nav:
       - Overview: api/reference.md
       - Core: api/core.md
       - Metrics: api/metrics.md
+      - Validation Panels: api/validation.md
   - Contributing: contributing.md
   - Changelog: CHANGELOG.md
 
