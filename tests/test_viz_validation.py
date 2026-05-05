@@ -19,6 +19,10 @@ from xr_toolz.viz.validation import (
     EventVerificationPanel,
     LeadTimeSkillPanel,
     ProcessBudgetPanel,
+    PSDIsotropicPanel,
+    PSDIsotropicScorePanel,
+    PSDSpaceTimePanel,
+    PSDSpaceTimeScorePanel,
     ScaleSkillPanel,
     SpectralSkillPanel,
 )
@@ -294,5 +298,168 @@ def test_viz_validation_top_level_imports():
         "EulerianLagrangianPanel",
         "ProcessBudgetPanel",
         "EventVerificationPanel",
+        "PSDIsotropicPanel",
+        "PSDIsotropicScorePanel",
+        "PSDSpaceTimePanel",
+        "PSDSpaceTimeScorePanel",
     ):
         assert hasattr(vv, name)
+
+
+# ---- V1.5 PSD panels ----------------------------------------------------
+
+
+@pytest.fixture
+def _psd_fixtures():
+    """Build small realistic PSD/score fixtures from the GLORYS cache.
+
+    Skips if the cache is missing — these tests are meant to exercise
+    the panels against real spectra, not synthetic input.
+    """
+    from pathlib import Path
+
+    import scipy.ndimage as ndi
+
+    from xr_toolz.metrics import psd_score
+    from xr_toolz.transforms import power_spectrum
+
+    cache = Path(__file__).resolve().parents[1] / ".cache"
+    g_path = cache / "glorys12_north_atlantic_2023-06.nc"
+    if not g_path.exists():
+        pytest.skip("North Atlantic GLORYS cache missing — see notebook for rebuild.")
+
+    g = xr.open_dataset(g_path)["zos"].rename({"latitude": "lat", "longitude": "lon"})
+    # Subsample for test speed (every 4th cell in space, every 3rd day).
+    g = g.isel(
+        time=slice(None, None, 3), lat=slice(None, None, 4), lon=slice(None, None, 4)
+    )
+
+    t = g["time"].values
+    days = (t - t[0]) / np.timedelta64(1, "D")
+    g = g.assign_coords(time=days.astype("float64"))
+    g_a = (g - g.mean(("lat", "lon"))).fillna(0.0)
+    s = xr.apply_ufunc(
+        lambda a: ndi.gaussian_filter(a, sigma=(0, 2.0, 2.0)), g_a
+    ).rename("zos")
+
+    iso = power_spectrum(g_a, dim=("lon", "lat"), isotropic=True).mean("time")
+    iso_score = psd_score(
+        s.to_dataset(name="zos"),
+        g_a.to_dataset(name="zos"),
+        "zos",
+        psd_dims=("lon", "lat"),
+        isotropic=True,
+    ).mean("time")
+    st = power_spectrum(g_a, dim=("lon", "time")).mean("lat")
+    st_score = psd_score(
+        s.to_dataset(name="zos"),
+        g_a.to_dataset(name="zos"),
+        "zos",
+        psd_dims=("lon", "time"),
+        avg_dims=("lat",),
+        isotropic=False,
+    )
+    return {"iso": iso, "iso_score": iso_score, "st": st, "st_score": st_score}
+
+
+def test_psd_isotropic_panel_renders(_psd_fixtures):
+    fig = PSDIsotropicPanel(freq_dim="freq_r", space_scale=1.0 / 111.0)(
+        _psd_fixtures["iso"]
+    )
+    assert isinstance(fig, mpl_figure.Figure)
+
+
+def test_psd_isotropic_score_panel_resolves_scale(_psd_fixtures):
+    panel = PSDIsotropicScorePanel(freq_dim="freq_r", space_scale=1.0 / 111.0)
+    fig = panel(_psd_fixtures["iso_score"])
+    # The smoothed twin must produce a resolved-scale crossing — a
+    # legend entry containing "Resolved scale" is the panel's
+    # observable signal that find_intercept_1D succeeded.
+    legend = fig.axes[0].get_legend()
+    assert legend is not None
+    labels = [t.get_text() for t in legend.get_texts()]
+    assert any("Resolved scale" in lab for lab in labels)
+
+
+def test_psd_isotropic_score_panel_clips_negative_scores(_psd_fixtures):
+    score = _psd_fixtures["iso_score"].copy()
+    score["score"] = score["score"] * 0 - 0.5  # all-negative
+    fig = PSDIsotropicScorePanel(freq_dim="freq_r", space_scale=1.0 / 111.0)(score)
+    ymin, ymax = fig.axes[0].get_ylim()
+    assert ymin == 0.0 and ymax == 1.0
+
+
+def test_psd_space_time_panel_renders(_psd_fixtures):
+    fig = PSDSpaceTimePanel(
+        freq_space_dim="freq_lon",
+        freq_time_dim="freq_time",
+        space_scale=1.0 / 111.0,
+        time_scale=1.0,
+    )(_psd_fixtures["st"])
+    assert isinstance(fig, mpl_figure.Figure)
+
+
+def test_psd_space_time_score_panel_renders(_psd_fixtures):
+    fig = PSDSpaceTimeScorePanel(
+        freq_space_dim="freq_lon",
+        freq_time_dim="freq_time",
+        space_scale=1.0 / 111.0,
+        time_scale=1.0,
+    )(_psd_fixtures["st_score"])
+    assert isinstance(fig, mpl_figure.Figure)
+
+
+def test_psd_panels_get_config_keys():
+    cfg = PSDIsotropicPanel(space_scale=2.0).get_config()
+    assert cfg["space_scale"] == 2.0
+    cfg = PSDIsotropicScorePanel(threshold=0.7, space_scale=1e-3).get_config()
+    assert cfg["threshold"] == 0.7
+    cfg = PSDSpaceTimePanel(time_scale=86400.0).get_config()
+    assert cfg["time_scale"] == 86400.0
+    cfg = PSDSpaceTimeScorePanel(threshold=0.4).get_config()
+    assert cfg["threshold"] == 0.4
+
+
+# ---- savefig / show args (panel-wide) -----------------------------------
+
+
+def test_panel_savefig_writes_file(tmp_path):
+    da = xr.DataArray(np.arange(4.0), dims=("lead_time",), name="rmse")
+    out = tmp_path / "skill.png"
+    fig = LeadTimeSkillPanel(savefig=out)(da)
+    assert isinstance(fig, mpl_figure.Figure)
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_panel_savefig_kwargs_forwarded(tmp_path):
+    da = xr.DataArray(np.arange(4.0), dims=("lead_time",), name="rmse")
+    out_lo = tmp_path / "lo.png"
+    out_hi = tmp_path / "hi.png"
+    LeadTimeSkillPanel(savefig=out_lo, savefig_kwargs={"dpi": 50})(da)
+    LeadTimeSkillPanel(savefig=out_hi, savefig_kwargs={"dpi": 200})(da)
+    # Higher dpi → larger PNG.
+    assert out_hi.stat().st_size > out_lo.stat().st_size
+
+
+def test_panel_show_calls_pyplot_show(monkeypatch):
+    da = xr.DataArray(np.arange(4.0), dims=("lead_time",), name="rmse")
+    calls = {"n": 0}
+    monkeypatch.setattr(plt, "show", lambda *a, **kw: calls.update(n=calls["n"] + 1))
+    LeadTimeSkillPanel(show=True)(da)
+    assert calls["n"] == 1
+
+
+def test_panel_show_default_does_not_call_pyplot_show(monkeypatch):
+    da = xr.DataArray(np.arange(4.0), dims=("lead_time",), name="rmse")
+    calls = {"n": 0}
+    monkeypatch.setattr(plt, "show", lambda *a, **kw: calls.update(n=calls["n"] + 1))
+    LeadTimeSkillPanel()(da)
+    assert calls["n"] == 0
+
+
+def test_psd_panel_savefig_writes_file(tmp_path, _psd_fixtures):
+    out = tmp_path / "iso.png"
+    PSDIsotropicPanel(freq_dim="freq_r", space_scale=1.0 / 111.0, savefig=out)(
+        _psd_fixtures["iso"]
+    )
+    assert out.exists() and out.stat().st_size > 0
