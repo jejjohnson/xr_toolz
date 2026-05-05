@@ -18,6 +18,7 @@ Shipped:
 from xr_toolz.viz.validation._src.budgets import ProcessBudgetPanel
 from xr_toolz.viz.validation._src.events import EventVerificationPanel
 from xr_toolz.viz.validation._src.lagrangian import EulerianLagrangianPanel
+from xr_toolz.viz.validation._src.palette import method_palette
 from xr_toolz.viz.validation._src.psd import (
     PSDIsotropicPanel,
     PSDIsotropicScorePanel,
@@ -42,4 +43,5 @@ __all__ = [
     "ProcessBudgetPanel",
     "ScaleSkillPanel",
     "SpectralSkillPanel",
+    "method_palette",
 ]

@@ -11,3 +11,8 @@ Submodules:
 - :mod:`xr_toolz.viz.validation` — V6 validation panels keyed to
   the V1–V5 metric outputs.
 """
+
+from xr_toolz.viz._src.norm import shared_norm
+
+
+__all__ = ["shared_norm"]
