@@ -63,8 +63,8 @@ items proposed there are not double-counted here.
 
 | # | File / Symbol | What it provides | Status |
 |---|------|------------------|--------|
-| A.4.1 | [`base.py: XRDABatcher`](https://github.com/jejjohnson/oceanbench/blob/neurips-paper/oceanbench/_src/datasets/base.py) | Dataset/iterable yielding stride/patch slices of an `xr.DataArray` with `__len__`, `__getitem__`, `get_coords()`, and **`reconstruct(items, dims_labels=None, weight=None)`** that re-stitches equal-shaped patches back with weighted overlap blending. **Killer feature for ML inference on tiles.** | **TBD — high value, no current xr_toolz equivalent** |
-| A.4.2 | [`utils.py`](https://github.com/jejjohnson/oceanbench/blob/neurips-paper/oceanbench/_src/datasets/utils.py) | Bookkeeping helpers (`get_dims_xrda`, `update_dict_xdims`, `get_xrda_size`, `get_patches_size`, `get_slices`). | TBD — bundles with A.4.1 |
+| A.4.1 | [`base.py: XRDABatcher`](https://github.com/jejjohnson/oceanbench/blob/neurips-paper/oceanbench/_src/datasets/base.py) | Dataset/iterable yielding stride/patch slices of an `xr.DataArray` with `__len__`, `__getitem__`, `get_coords()`, and **`reconstruct(items, dims_labels=None, weight=None)`** that re-stitches equal-shaped patches back with weighted overlap blending. **Killer feature for ML inference on tiles.** Stand-alone evolution lives in [`jejjohnson/xrpatcher`](https://github.com/jejjohnson/xrpatcher) (MIT). | Proposal: [ob-1.1-xrpatcher-integration.md](ob-1.1-xrpatcher-integration.md) |
+| A.4.2 | [`utils.py`](https://github.com/jejjohnson/oceanbench/blob/neurips-paper/oceanbench/_src/datasets/utils.py) | Bookkeeping helpers (`get_dims_xrda`, `update_dict_xdims`, `get_xrda_size`, `get_patches_size`, `get_slices`). | Folded into [ob-1.1](ob-1.1-xrpatcher-integration.md) (already in `xrpatcher._src.utils`) |
 
 ### A.5 Hydra config recipes — [`config/`](https://github.com/jejjohnson/oceanbench/tree/master/config)
 
