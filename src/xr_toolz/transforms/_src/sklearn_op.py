@@ -19,6 +19,7 @@ SklearnMethod = Literal[
     "predict_proba",
     "inverse_transform",
 ]
+_MAX_JSON_RECURSION_DEPTH = 10
 
 
 class SklearnOp(Operator):
@@ -99,7 +100,7 @@ class SklearnOp(Operator):
 
 
 def _json_safe(value: Any, *, _depth: int = 0) -> Any:
-    if _depth > 10:
+    if _depth > _MAX_JSON_RECURSION_DEPTH:
         return repr(value)
     if value is None or isinstance(value, str | int | float | bool):
         return value
