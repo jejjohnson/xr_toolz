@@ -46,7 +46,7 @@ what to port, adapt, or skip. Status column is updated as decisions are made.
 | 3.3 | [`src/mod_traj.py`](https://github.com/ocean-data-challenges/2024c_DC_4DMedSea-ESA/blob/main/src/mod_traj.py) | Lagrangian drifter advection: `adv_eul`, `adv_rk4`, `compute_traj` (multi-horizon), `compute_deviation` (binned RMSE between modeled vs observed drifters), `dist_drifters`. **Entire Lagrangian sub-domain missing from xr_toolz.** | Reconciles with [Epic V3 (#49)](https://github.com/jejjohnson/xr_toolz/issues/49) — see [odc-3.2-lagrangian-reconciliation.md](odc-3.2-lagrangian-reconciliation.md). Upstream `adv_eul`/`adv_rk4` → [#51](https://github.com/jejjohnson/xr_toolz/issues/51); `compute_deviation` → [#53](https://github.com/jejjohnson/xr_toolz/issues/53) (new `EndpointErrorMap`); `prepare_drifter_data` → [#54](https://github.com/jejjohnson/xr_toolz/issues/54). |
 | 3.4 | `src/mod_compare.py` | Paired-diff stat/PSD plots (the wrappers, not the zoom/longitude utils). | Proposal: [odc-3.4-pairwise-compare-panel.md](odc-3.4-pairwise-compare-panel.md) |
 | 3.5 | `src/mod_xscale.py` / `mod_utils.py` / `mod_read.py` | Duplicate `xrft`, generic helpers, data-fetch. | Skip |
-| 3.6 | `mod_plot.py:movie` | `matplotlib.animation` intercomparison panels. | TBD |
+| 3.6 | `mod_plot.py:movie` | `matplotlib.animation` intercomparison panels. | Proposal: [odc-3.6-animate-panel.md](odc-3.6-animate-panel.md) |
 
 ---
 
