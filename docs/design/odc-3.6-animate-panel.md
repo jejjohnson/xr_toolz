@@ -136,8 +136,8 @@ Disk-frame caching is unnecessary.
 
 Same as `FacetPanel` (ODC-2.3) and `PairwiseComparePanel` (ODC-3.4):
 
-- ✅ Any `_ValidationPanel` subclass — round-trips through
-  `_apply(ds_slice, ax)`.
+- ✅ Any `_ValidationPanel` subclass — per-frame rendering goes through
+  the existing `_build(fig, ax, ds_slice)` hook on the base class.
 - ✅ Plain callables `(xr.Dataset, mpl.axes.Axes) -> Any`.
 - ❌ Plots that own the whole figure (seaborn `JointGrid`, etc.).
 - ❌ Plotly / hvplot / Bokeh — matplotlib only.
@@ -150,12 +150,20 @@ overrides always win.
 
 ```python
 # src/xr_toolz/viz/validation/_src/animate.py
-class AnimatePanel(_ValidationPanel):
+class AnimatePanel:
     """Generic time-axis animation wrapper around any single-axes panel.
 
+    **Not** a ``_ValidationPanel`` subclass — the panel base contract is
+    "callable returning a Figure", and an animation is fundamentally a
+    `FuncAnimation` instead. Reusing the inheritance would break the
+    base contract; instead, this is a sibling abstraction that
+    *consumes* a `_ValidationPanel` (or callable) and produces an
+    animation.
+
     Builds the figure once via the inner panel's ``_make_fig_axes``;
-    on each frame, calls ``inner._apply(ds.isel({frame_dim: i}), ax)``
-    and updates the per-frame title.
+    on each frame, calls ``inner._build(fig, ax, ds.isel({frame_dim:
+    i}))`` — the same render-into-axes hook that ``FacetPanel`` and
+    ``PairwiseComparePanel`` use — and updates the per-frame title.
     """
 
     def __init__(
@@ -203,8 +211,9 @@ class AnimatePanel(_ValidationPanel):
    `plt.subplots(figsize=..., subplot_kw=...)`.
 5. Define `update(i)`:
    - `ds_slice = ds.isel({frame_dim: i})`.
-   - For `_ValidationPanel`: `inner._apply(ds_slice, ax)`. Inner panel
-     is responsible for `ax.clear()` if needed (existing convention).
+   - For `_ValidationPanel`: `inner._build(fig, ax, ds_slice)`. Inner
+     panel is responsible for `ax.clear()` if needed (existing
+     convention).
    - For callable: `inner(ds_slice, ax)`.
    - Set per-frame title via `title_format.format(value=value, index=i)`
      where `value = ds[frame_dim].values[i]`.
@@ -386,17 +395,19 @@ Target: ~17 cases.
    to match sibling pattern (`FacetPanel`, `PairwiseComparePanel`).
    "Movie" is upstream-specific; "Animate" is the matplotlib term.
 2. **Return type from `__call__`.** `FuncAnimation` instance, not
-   `(fig, axes)` tuple. Different from sibling panels — but the natural
-   matplotlib animation primitive. Save / display happens explicitly via
-   `save_animation` or `ani.to_jshtml()`. Document.
+   `Figure`. Because the return type diverges from the
+   `_ValidationPanel` contract, `AnimatePanel` is a *sibling*
+   abstraction (plain class) rather than a subclass — composition over
+   inheritance. Save / display happens explicitly via `save_animation`
+   or `ani.to_jshtml()`. Document.
 3. **Cartopy + animation performance.** Cartopy redraws are expensive.
    `blit=False` default; advanced users can opt into `blit=True` if
    their inner panel supports it (most cartopy panels don't — they
    redraw the whole map). Document.
 4. **Inner panel state mutation.** `update(i)` calls
-   `inner_panel._apply(slice, ax)` which often calls `ax.clear()` first.
-   We rely on existing `_apply` implementations being idempotent — they
-   are (verified by their existing round-trip tests).
+   `inner_panel._build(fig, ax, slice)` which often calls `ax.clear()`
+   first. We rely on existing `_build` implementations being idempotent
+   — they are (verified by their existing round-trip tests).
 5. **`vmin`/`vmax` bias warning.** When user doesn't pass clim to inner
    panel, mpl computes from the *first frame's* data range, which
    becomes the colorbar for the whole animation. Document in

@@ -48,7 +48,7 @@ panel = FacetPanel(
     facet_dim="season",
     ncols=2,
 )
-fig, axes = panel(ds_seasonal)
+fig = panel(ds_seasonal)
 ```
 
 ### 2.2 Facet a SpatialMapPanel by experiment
@@ -65,7 +65,7 @@ panel = FacetPanel(
     facet_dim="experiment",
     sharebar=True,
 )
-fig, axes = panel(ds_err)   # one cartopy GeoAxes per experiment
+fig = panel(ds_err)   # one cartopy GeoAxes per experiment
 ```
 
 ### 2.3 Facet ad-hoc matplotlib code (callable, no subclass)
@@ -78,7 +78,7 @@ def quick_plot(ds, ax):
     ax.set_title(str(ds.attrs.get("label", "")))
 
 panel = FacetPanel(quick_plot, facet_dim="run", ncols=3)
-fig, axes = panel(ds_runs)
+fig = panel(ds_runs)
 ```
 
 ### 2.4 As an Operator inside a Sequential
@@ -179,11 +179,13 @@ by user kwarg); call `plt.subplots(nrows, ncols, sharex=sharex,
 sharey=sharey, figsize=(ncols*w, nrows*h), subplot_kw=subplot_kw)`.
 Return `(fig, axes)`.
 
-**`_apply`** — iterate `for i, value in enumerate(ds[facet_dim].values)`:
+**`_build(fig, axes, ds)`** — iterate
+`for i, value in enumerate(ds[facet_dim].values)`:
 1. `ds_slice = ds.isel({facet_dim: i})`.
 2. Resolve `ax` at `(i // ncols, i % ncols)`.
-3. Dispatch: if inner is `_ValidationPanel`, call `panel._apply(ds_slice,
-   ax)`; else call `panel(ds_slice, ax)`.
+3. Dispatch: if inner is `_ValidationPanel`, call
+   `panel._build(fig, ax, ds_slice)` — the existing render-into-axes
+   hook on the base class. Else call `panel(ds_slice, ax)`.
 4. Capture returned mappable for shared-colorbar handling.
 5. Set per-axes title via `title_format.format(value=value, index=i)`.
 6. After the loop, hide unused trailing axes when `n < nrows*ncols`.
@@ -191,6 +193,11 @@ Return `(fig, axes)`.
    shared colorbar via `fig.colorbar(mappable, ax=axes.ravel().tolist())`;
    else fall back to per-axes (issue a warning if `sharebar=True`
    requested but no mappable returned).
+
+`__call__` (inherited from `_ValidationPanel`) wraps `_build` in
+`_apply`, runs `_make_fig_axes` for the grid, applies title / save /
+show hooks, and **returns the `Figure`** — same contract as every
+other `_ValidationPanel`.
 
 **`get_config`** — emit inner panel's `get_config()` recursively when
 it's a `_ValidationPanel`; for callables, emit `{"panel": "<callable>"}`
@@ -268,7 +275,7 @@ Re-exported from `xr_toolz.viz.validation.__init__`.
 | 5-element dim, default layout | 2×3 grid; last axis hidden |
 | Per-axes title matches `coord[facet_dim].values[i]` | exact string |
 | `title_format="{value} ({index})"` | format applied |
-| Inner `_ValidationPanel._apply` called once per slice with right ax | exact call count + axes identity |
+| Inner `_ValidationPanel._build` called once per slice with right `(fig, ax)` | exact call count + axes identity |
 | Plain callable inner panel | invoked once per slice; no subclassing required |
 | `SpatialMapPanel` inner with `projection="gulf_stream"` | grid built with cartopy GeoAxes |
 | Explicit `subplot_kw=` overrides inner projection | user value used |

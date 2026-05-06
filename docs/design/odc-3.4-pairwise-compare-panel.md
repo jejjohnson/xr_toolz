@@ -61,7 +61,7 @@ panel = PairwiseComparePanel(
     diff="relative",
     diff_kwargs={"cmap": "coolwarm", "vmin": -20, "vmax": 20},
 )
-fig, axes = panel(ds)
+fig = panel(ds)
 ```
 
 ### 2.2 Compare two PSD-score panels (absolute diff)
@@ -74,7 +74,7 @@ panel = PairwiseComparePanel(
     method_dim="method",
     diff="absolute",
 )
-fig, axes = panel(ds_psd_by_method)
+fig = panel(ds_psd_by_method)
 ```
 
 ### 2.3 Reproduce the upstream 6-panel mosaic via `FacetPanel`
@@ -93,7 +93,7 @@ panel = FacetPanel(
     facet_dim="scale",          # e.g. coord values ["all_scale", "filtered"]
     nrows=2, ncols=1,
 )
-fig, axes = panel(ds)            # dims (scale, method, lat, lon)
+fig = panel(ds)            # dims (scale, method, lat, lon)  — returns Figure
 ```
 
 ### 2.4 As an Operator inside a Sequential
@@ -173,7 +173,7 @@ class PairwiseComparePanel(_ValidationPanel):
 3. Resolve `subplot_kw` from inner panel's `projection` (when present).
    Explicit user `subplot_kw=` wins.
 
-`_apply`:
+`_build(fig, axes, ds)`:
 
 1. Validate `ds.sizes[method_dim] == 2`; raise informative error otherwise.
 2. `ref = ds.isel({method_dim: 0})`; `study = ds.isel({method_dim: 1})`.
@@ -187,12 +187,13 @@ class PairwiseComparePanel(_ValidationPanel):
        ds_diff = None
    ```
 4. Render in order: ref → cell 0, study → cell 1, diff → cell 2.
-   Each call dispatches on inner-panel type:
+   Each call dispatches on inner-panel type via the `_build(fig, ax,
+   ds)` hook on the base class:
    ```python
    def _render(panel, ds, ax, kwargs_override=None):
        if isinstance(panel, _ValidationPanel):
            inner = _clone_with_overrides(panel, kwargs_override)
-           inner._apply(ds, ax)
+           inner._build(fig, ax, ds)
        else:
            panel(ds, ax)        # callable path
    ```

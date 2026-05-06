@@ -1,4 +1,4 @@
-# ODC-3.2 — Lagrangian advection: reconciliation with Epic V3
+# ODC-3.3 — Lagrangian advection: reconciliation with Epic V3
 
 **Source survey item:** [ocean-data-challenges-survey.md §3.3 — `mod_traj.py`](ocean-data-challenges-survey.md)
 **Status:** reconciled — no new design doc; amendments applied to existing V3 issues.

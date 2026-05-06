@@ -43,7 +43,7 @@ what to port, adapt, or skip. Status column is updated as decisions are made.
 |---|------|------------------|--------|
 | 3.1 | [`src/mod_powerspec.py`](https://github.com/ocean-data-challenges/2024c_DC_4DMedSea-ESA/blob/main/src/mod_powerspec.py) | `wavenumber_spectra` (radial 2D PSD with Tukey/Hanning windows), `cross_spectra`, **`spectra_flux` (KE spectral flux from u, v in Fourier space)**, `weighted_scale` (integral scale), `fill_nan`. Spectral KE flux is genuinely missing from xr_toolz. | Proposal: [odc-3.1-spectral-flux-and-scales.md](odc-3.1-spectral-flux-and-scales.md) |
 | 3.2 | [`src/mod_switchvar.py`](https://github.com/ocean-data-challenges/2024c_DC_4DMedSea-ESA/blob/main/src/mod_switchvar.py) | `sla_to_ssh(ds, mdt)` (adds CNES MDT), `currents_to_potential_vorticity(u, v, h)`. The rest duplicates our `ocn` ops. | Mostly already covered (`potential_vorticity_barotropic`, `geostrophic_velocities`, `relative_vorticity`, `grid_metrics_from_coords`, `calculate_ssh_alongtrack`). One small gap (optional LWE in `calculate_ssh_alongtrack`) filed as [#135](https://github.com/jejjohnson/xr_toolz/issues/135). |
-| 3.3 | [`src/mod_traj.py`](https://github.com/ocean-data-challenges/2024c_DC_4DMedSea-ESA/blob/main/src/mod_traj.py) | Lagrangian drifter advection: `adv_eul`, `adv_rk4`, `compute_traj` (multi-horizon), `compute_deviation` (binned RMSE between modeled vs observed drifters), `dist_drifters`. **Entire Lagrangian sub-domain missing from xr_toolz.** | Reconciles with [Epic V3 (#49)](https://github.com/jejjohnson/xr_toolz/issues/49) — see [odc-3.2-lagrangian-reconciliation.md](odc-3.2-lagrangian-reconciliation.md). Upstream `adv_eul`/`adv_rk4` → [#51](https://github.com/jejjohnson/xr_toolz/issues/51); `compute_deviation` → [#53](https://github.com/jejjohnson/xr_toolz/issues/53) (new `EndpointErrorMap`); `prepare_drifter_data` → [#54](https://github.com/jejjohnson/xr_toolz/issues/54). |
+| 3.3 | [`src/mod_traj.py`](https://github.com/ocean-data-challenges/2024c_DC_4DMedSea-ESA/blob/main/src/mod_traj.py) | Lagrangian drifter advection: `adv_eul`, `adv_rk4`, `compute_traj` (multi-horizon), `compute_deviation` (binned RMSE between modeled vs observed drifters), `dist_drifters`. **Entire Lagrangian sub-domain missing from xr_toolz.** | Reconciles with [Epic V3 (#49)](https://github.com/jejjohnson/xr_toolz/issues/49) — see [odc-3.3-lagrangian-reconciliation.md](odc-3.3-lagrangian-reconciliation.md). Upstream `adv_eul`/`adv_rk4` → [#51](https://github.com/jejjohnson/xr_toolz/issues/51); `compute_deviation` → [#53](https://github.com/jejjohnson/xr_toolz/issues/53) (new `EndpointErrorMap`); `prepare_drifter_data` → [#54](https://github.com/jejjohnson/xr_toolz/issues/54). |
 | 3.4 | `src/mod_compare.py` | Paired-diff stat/PSD plots (the wrappers, not the zoom/longitude utils). | Proposal: [odc-3.4-pairwise-compare-panel.md](odc-3.4-pairwise-compare-panel.md) |
 | 3.5 | `src/mod_xscale.py` / `mod_utils.py` / `mod_read.py` | Duplicate `xrft`, generic helpers, data-fetch. | Skip |
 | 3.6 | `mod_plot.py:movie` | `matplotlib.animation` intercomparison panels. | Proposal: [odc-3.6-animate-panel.md](odc-3.6-animate-panel.md) |
@@ -74,7 +74,7 @@ mini-pipeline + a `Sequential` recipe.
 
 | Rank | Item | Value | Ease | Maps to |
 |------|------|-------|------|---------|
-| 1 | `AlongTrackColocate` / `DrifterColocate` operator wrapping pyinterp 4D | HIGH | MEDIUM | `geo/inference` |
+| 1 | `AlongTrackColocate` / `DrifterColocate` operator built on `xarray.Dataset.interp` (no new deps) | HIGH | MEDIUM | `geo/inference` |
 | 2 | `SegmentedPSDScore` + `effective_resolution(k, psd_diff, psd_ref, t=0.5)` | HIGH | MEDIUM | `geo/metrics` |
 | 3 | 2D `(kx, kt)` PSD-score with `(λx, λt)` double-contour + `PSDScore2DPanel` | HIGH | EASY | `geo/metrics` + `viz/validation` |
 | 4 | Spectral KE flux `spectra_flux(u, v, lon, lat)` | HIGH | MEDIUM | `ocn` |
@@ -83,7 +83,7 @@ mini-pipeline + a `Sequential` recipe.
 | 7 | Diebold–Mariano paired-forecast test | MEDIUM | EASY | `geo/metrics` |
 | 8 | `error_stability = std(rmse_t)` | MEDIUM | TRIVIAL | `geo/metrics` |
 | 9 | Regime-stratified scoring (coastal/equatorial/eddy) + bar plot | MEDIUM | MEDIUM | `geo/metrics` + viz |
-| 10 | pyinterp + Gauss–Seidel NaN-fill regridder alongside sklearn-NN | MEDIUM | EASY | `geo/regrid` |
+| 10 | Laplacian (Gauss–Seidel) NaN-fill primitive — see [odc-2.2-laplacian-gap-fill.md](odc-2.2-laplacian-gap-fill.md) | MEDIUM | EASY | `geo/regrid` |
 | 11 | `sla_to_ssh(ds, mdt)` MDT-addition op + `ssh→PV` | MEDIUM | TRIVIAL | `ocn` |
 | 12 | Seasonal PSD-score mosaic viz | LOW-MEDIUM | EASY | `viz/validation` |
 | 13 | Movie / animation comparison panel | LOW | MEDIUM | `viz/validation` |

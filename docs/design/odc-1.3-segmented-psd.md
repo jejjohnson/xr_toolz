@@ -196,8 +196,10 @@ Internal flow:
 4. Per-segment: call `scipy.signal.welch` for `psd_ref`, `psd_pred`,
    `psd_err = psd of (pred − ref)`; `scipy.signal.coherence` for
    coherence. `psd_score = 1 − psd_err / psd_ref`.
-5. `circmean` on `cos(lon_rad)`, `sin(lon_rad)` for the per-segment
-   median longitude — no Greenwich/dateline branching.
+5. Per-segment representative longitude via `scipy.stats.circmean(lon,
+   high=360, low=0)` (or equivalently `atan2(mean(sin(lon_rad)),
+   mean(cos(lon_rad)))`) — wraps the dateline cleanly without
+   Greenwich/dateline branching.
 
 ### 4.4 Geographic box aggregation
 
