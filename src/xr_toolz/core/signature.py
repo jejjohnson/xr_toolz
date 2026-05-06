@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,9 +35,9 @@ class Signature:
             dtype=self.dtype,
         )
 
-    def drop_dims(self, names: tuple[str, ...]) -> Signature:
+    def drop_dims(self, names: str | Sequence[str]) -> Signature:
         """Return a copy without the requested dimensions."""
-        drop = set(names)
+        drop = {names} if isinstance(names, str) else set(names)
         return Signature(
             {name: size for name, size in self.dims.items() if name not in drop},
             dtype=self.dtype,

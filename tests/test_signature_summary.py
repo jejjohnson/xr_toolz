@@ -125,9 +125,21 @@ def test_graph_summary_propagates_multi_input_metric_signature() -> None:
     text = graph.summary({"pred": signature, "ref": signature})
 
     assert output == {"score": Signature({"lon": 6}, "float")}
-    assert "Graph (2 inputs, 1 outputs)" in text
+    assert "Graph (2 inputs, 1 output)" in text
     assert "RMSE" in text
     assert "(lon=6); dtype=float" in text
+
+
+def test_graph_summary_accepts_single_signature_for_single_input_graph() -> None:
+    x = Input("x")
+    y = SubsetTime("2000-01-01", "2000-01-31")(x)
+    graph = Graph(inputs={"x": x}, outputs={"y": y})
+    signature = Signature({"time": 12, "lat": 4}, "float32")
+
+    text = graph.summary(signature)
+
+    assert "Graph (1 input, 1 output)" in text
+    assert "(time=?, lat=4); dtype=float32" in text
 
 
 def test_metric_signature_rejects_mismatched_inputs() -> None:

@@ -138,10 +138,17 @@ class Graph(Operator):
             return outputs[next(iter(self.outputs))]
         return self._compute_signatures(input_signature)
 
-    def summary(self, input_signatures: dict[str, Signature]) -> str:
+    def summary(self, input_signatures: Signature | dict[str, Signature]) -> str:
         """Render input/output signatures for each graph node."""
         from xr_toolz.core.sequential import _format_summary_table
 
+        if isinstance(input_signatures, Signature):
+            if len(self.inputs) != 1:
+                raise ValueError(
+                    "Single Signature summary requires exactly one graph input; "
+                    f"got {len(self.inputs)} inputs."
+                )
+            input_signatures = {next(iter(self.inputs)): input_signatures}
         missing = set(self.inputs) - set(input_signatures)
         extra = set(input_signatures) - set(self.inputs)
         if missing or extra:
@@ -173,7 +180,8 @@ class Graph(Operator):
                 )
             )
         return _format_summary_table(
-            f"Graph ({len(self.inputs)} inputs, {len(self.outputs)} outputs)",
+            f"Graph ({_format_count(len(self.inputs), 'input')}, "
+            f"{_format_count(len(self.outputs), 'output')})",
             rows,
         )
 
@@ -306,3 +314,8 @@ def _format_graph_signature(signature: Signature | tuple[Signature, ...]) -> str
     if isinstance(signature, tuple):
         return ", ".join(sig.format() for sig in signature)
     return signature.format()
+
+
+def _format_count(count: int, noun: str) -> str:
+    suffix = "" if count == 1 else "s"
+    return f"{count} {noun}{suffix}"
