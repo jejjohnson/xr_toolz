@@ -274,7 +274,8 @@ class XarrayEstimator(BaseEstimator):
         nan_policy: ``"propagate"`` (default) hands NaN to the estimator
             unchanged; ``"raise"`` errors out before delegating; ``"mask"``
             drops sample rows containing any NaN before delegating, then
-            re-inserts NaN rows in xarray outputs.
+            re-inserts NaN rows in xarray outputs. The mask policy scans
+            each sample row across all stacked features.
 
     Example:
         >>> from sklearn.decomposition import PCA

@@ -22,7 +22,14 @@ SklearnMethod = Literal[
 
 
 class SklearnOp(Operator):
-    """Layer-1 operator that delegates sklearn marshalling to ``XarrayEstimator``."""
+    """Layer-1 operator that delegates sklearn marshalling to ``XarrayEstimator``.
+
+    ``method="fit_transform"`` fits a fresh clone on each call. Other methods
+    call the estimator as already fitted, matching sklearn's runtime contract.
+    ``get_config()`` stores primitive estimator parameters directly and stores
+    non-primitive parameters as ``repr(...)`` strings so the config remains JSON
+    serializable.
+    """
 
     def __init__(
         self,
