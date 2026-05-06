@@ -501,12 +501,12 @@ class RemapAxis(Operator):
         return {
             "source_axis": self.source_axis,
             "target_axis": self._target_values.tolist(),
-            "target_name": self.target_name or self._inferred_name,
+            "target_name": self._resolve_target_name(),
             "method": self.method,
         }
 
     def compute_output_signature(self, input_signature: Signature) -> Signature:
-        target_name = self.target_name or self._inferred_name or self.source_axis
+        target_name = self._resolve_target_name()
         dims = {}
         for name, size in input_signature.dims.items():
             if name == self.source_axis:
@@ -514,6 +514,13 @@ class RemapAxis(Operator):
             else:
                 dims[name] = size
         return Signature(dims, dtype=input_signature.dtype)
+
+    def _resolve_target_name(self) -> str:
+        if self.target_name is not None:
+            return self.target_name
+        if self._inferred_name is not None:
+            return str(self._inferred_name)
+        return self.source_axis
 
 
 # Vertical presets — thin specializations that pin convention names. The

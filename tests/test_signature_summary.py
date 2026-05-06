@@ -88,7 +88,13 @@ def test_interpolation_shape_changing_operator_signatures() -> None:
     assert Coarsen({"lat": 3}, boundary="pad").compute_output_signature(
         signature
     ) == Signature({"time": 24, "lat": 4, "lon": 20}, "float32")
-    with pytest.raises(ValueError, match="boundary='exact'"):
+    with pytest.raises(
+        ValueError,
+        match=(
+            "coarsen boundary='exact' requires 'lat' size 10 to be "
+            "divisible by factor 3"
+        ),
+    ):
         Coarsen({"lat": 3}, boundary="exact").compute_output_signature(signature)
     assert Refine({"lat": 2}).compute_output_signature(signature) == Signature(
         {"time": 24, "lat": 19, "lon": 20},

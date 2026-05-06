@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence as SequenceABC
+from collections.abc import Sequence
 from typing import Any
 
 from xr_toolz.core.operator import Operator
@@ -123,7 +123,7 @@ def _format_op(op: Operator, *, max_width: int) -> list[str]:
 
 def _format_summary_table(
     title: str,
-    rows: list[SequenceABC[str]],
+    rows: list[Sequence[str]],
 ) -> str:
     headers = ("Step", "Operator", "Input Signature", "Output Signature")
     all_rows = [headers, *rows]

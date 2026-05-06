@@ -213,7 +213,7 @@ class R2Score(_PixelMetricOp):
 def _validate_compatible_signatures(left: Signature, right: Signature) -> None:
     if set(left.dims) != set(right.dims):
         raise ValueError(
-            "Metric input signatures must have the same dimensions; "
+            "Metric inputs must have matching dimension names; "
             f"got {tuple(left.dims)} and {tuple(right.dims)}."
         )
     mismatched = {

@@ -163,6 +163,11 @@ class CalculateClimatology(Operator):
     """Return a climatology at ``freq`` from the input dataset."""
 
     def __init__(self, freq: str = "day", time: str = "time"):
+        if freq not in _detrend.CLIMATOLOGY_DIMS:
+            raise ValueError(
+                f"Unsupported climatology frequency {freq!r}; expected one of "
+                f"{sorted(_detrend.CLIMATOLOGY_DIMS)}."
+            )
         self.freq = freq
         self.time = time
 
