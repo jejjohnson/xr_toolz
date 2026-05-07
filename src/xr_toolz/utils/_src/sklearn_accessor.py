@@ -1,4 +1,18 @@
-"""xarray accessors for the sklearn bridge."""
+"""xarray accessors for the sklearn bridge.
+
+Registers the ``da.sklearn`` and ``ds.sklearn`` accessors at import time
+so users can run sklearn-style verbs directly on xarray objects without
+constructing an :class:`XarrayEstimator` by hand. Each accessor method
+constructs an ``XarrayEstimator`` under the hood and delegates — there
+is no parallel marshalling path. Importing :mod:`xr_toolz.utils` is
+enough to register the accessors.
+
+Example:
+    >>> import xarray as xr
+    >>> from sklearn.preprocessing import StandardScaler
+    >>> import xr_toolz.utils  # registers the .sklearn accessor  # noqa: F401
+    >>> scaled = ssh.sklearn.fit_transform(StandardScaler(), sample_dim="time")
+"""
 
 from __future__ import annotations
 
@@ -11,7 +25,43 @@ from xr_toolz.utils._src.sklearn_wrap import NanPolicy, XarrayEstimator
 
 
 class _SklearnAccessor:
-    """Thin xarray accessor that delegates to :class:`XarrayEstimator`."""
+    """Thin xarray accessor that delegates to :class:`XarrayEstimator`.
+
+    Provides ``fit``, ``fit_transform``, ``transform``, ``inverse_transform``,
+    ``predict``, ``predict_proba``, and ``score`` directly on
+    :class:`xarray.DataArray` / :class:`xarray.Dataset` objects via the
+    registered ``.sklearn`` namespace. The accessor never re-implements
+    the stack→delegate→unstack marshalling — every method constructs an
+    :class:`XarrayEstimator` and forwards.
+
+    Methods that need a *fitted* estimator (``transform``,
+    ``inverse_transform``, ``predict``, ``predict_proba``, ``score``)
+    use a shortcut that sets ``estimator_`` on a fresh wrapper. That
+    shortcut bypasses the wrapper's ``_fitted_meta_`` capture, so
+    ``inverse_transform`` falls into the generic
+    ``(sample_dim, component)`` layout rather than restoring the
+    training feature grid. To get the original grid back, fit an
+    :class:`XarrayEstimator` explicitly:
+
+    >>> from xr_toolz.utils import XarrayEstimator
+    >>> from sklearn.decomposition import PCA
+    >>> wrap = XarrayEstimator(PCA(n_components=2), sample_dim="time").fit(da)
+    >>> recon = wrap.inverse_transform(wrap.transform(da))   # → (time, lat, lon)
+
+    Example:
+        >>> # Fit-and-transform directly off a DataArray
+        >>> scores = da.sklearn.fit_transform(
+        ...     PCA(n_components=3),
+        ...     sample_dim="time",
+        ...     nan_policy="mask",
+        ... )
+
+        >>> # Score a fitted estimator against a held-out slice
+        >>> r2 = da_test.sklearn.score(fitted_regressor, y_test, sample_dim="time")
+
+        >>> # Dataset variant: column-concat data_vars before fitting
+        >>> scaled = ds.sklearn.fit_transform(StandardScaler(), sample_dim="time")
+    """
 
     def __init__(self, xarray_obj: xr.DataArray | xr.Dataset) -> None:
         self._obj = xarray_obj

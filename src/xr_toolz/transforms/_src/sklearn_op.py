@@ -26,39 +26,88 @@ _MAX_JSON_RECURSION_DEPTH = 10
 class SklearnOp(Operator):
     """Layer-1 operator that delegates sklearn marshalling to ``XarrayEstimator``.
 
-    ``method="transform"`` (default) and ``"predict"`` / ``"predict_proba"`` /
-    ``"inverse_transform"`` require ``estimator`` to be already fitted — pass an
-    sklearn estimator that has been fitted, or a fitted ``XarrayEstimator``.
-    Passing a fitted ``XarrayEstimator`` is the only way to get the original
-    ``(sample_dim, *feature_dims)`` grid back from ``inverse_transform``, since
-    that path needs the training metadata captured at ``fit`` time.
+    Drops a fitted (or fittable) sklearn-style estimator into a
+    :class:`xr_toolz.core.Sequential` chain. The op marshals the input via
+    :class:`XarrayEstimator` (stack → delegate → unstack), so the underlying
+    estimator only ever sees a 2-D numpy array.
 
-    ``method="fit_transform"`` fits a fresh clone on each call. Avoid inside
-    ``Sequential`` — re-fitting on every pipeline invocation is rarely what you
-    want.
+    Behaviour by ``method``:
 
-    ``get_config()`` stores primitive estimator parameters directly and stores
-    non-primitive parameters as ``repr(...)`` strings so the config remains JSON
-    serializable.
+    - ``"transform"`` (default), ``"predict"``, ``"predict_proba"`` —
+      ``estimator`` must already be fitted. Pass either a fitted sklearn
+      estimator or a fitted :class:`XarrayEstimator`.
+    - ``"inverse_transform"`` — also requires fitted state, **and** requires
+      ``estimator`` to be a fitted :class:`XarrayEstimator` if you want the
+      original ``(sample_dim, *feature_dims)`` grid back. The raw-estimator
+      path produces a generic ``(sample_dim, new_feature_dim)`` layout.
+    - ``"fit_transform"`` — fits a fresh clone on every call. Avoid inside
+      :class:`Sequential` (re-fitting on every pipeline invocation is rarely
+      what you want); use it for one-shot fit-and-transform ops.
+
+    ``get_config()`` stores primitive estimator parameters directly and
+    serialises non-primitive parameters as ``repr(...)`` strings, so the
+    config is JSON-safe (works with ``Sequential.get_config()``).
 
     Args:
         estimator: A raw sklearn estimator (``BaseEstimator``) or an
-            ``XarrayEstimator``. For methods other than ``"fit_transform"`` it
-            must already be fitted.
-        variable: Name of the Dataset variable to operate on. Required when
-            input is a multi-variable Dataset (or any Dataset for which the
+            :class:`XarrayEstimator`. For methods other than
+            ``"fit_transform"`` it must already be fitted.
+        variable: Dataset variable to operate on. Required when input is a
+            multi-variable :class:`xarray.Dataset` (or any Dataset where the
             whole-Dataset stacked path is not desired).
-        output_variable: Name of the variable to assign the result to. Defaults
-            to ``variable``. When input is a Dataset and neither ``variable``
-            nor ``output_variable`` is set, ``__call__`` raises ``ValueError``
-            because the result would no longer be a Dataset and would break
-            ``Sequential`` chains.
+        output_variable: Name of the variable to assign the result to.
+            Defaults to ``variable``. When input is a Dataset and neither
+            ``variable`` nor ``output_variable`` is set, ``__call__`` raises
+            :class:`ValueError` (the result would be a DataArray, breaking
+            :class:`Sequential` chains).
         sample_dim: xarray dim indexing samples. Defaults to the first dim.
         new_feature_dim: Name for the feature dim when the estimator changes
             feature count (e.g. PCA component count).
         nan_policy: ``"propagate"`` (default), ``"raise"``, or ``"mask"``. See
-            :class:`XarrayEstimator`.
+            :class:`XarrayEstimator` for the masking semantics on Dataset
+            input.
         method: Which sklearn-style method to call on each invocation.
+
+    Example:
+        Compose a fitted scaler + a fitted PCA in a Sequential::
+
+            from sklearn.decomposition import PCA
+            from sklearn.preprocessing import StandardScaler
+
+            from xr_toolz.core import Sequential
+            from xr_toolz.transforms import SklearnOp
+            from xr_toolz.utils import XarrayEstimator
+
+            # Fit upstream, then drop the fitted estimators into the chain.
+            scaler = XarrayEstimator(StandardScaler(), sample_dim="time").fit(ds["ssh"])
+            pca = XarrayEstimator(PCA(n_components=10), sample_dim="time").fit(
+                scaler.transform(ds["ssh"])
+            )
+
+            pipeline = Sequential([
+                SklearnOp(scaler, variable="ssh"),
+                SklearnOp(pca, variable="ssh", output_variable="pcs"),
+            ])
+            ds_out = pipeline(ds)            # ds_out has both "ssh" and "pcs"
+
+        One-shot fit-and-transform of a single var (no Sequential reuse)::
+
+            op = SklearnOp(StandardScaler(), variable="ssh", sample_dim="time",
+                           method="fit_transform")
+            ds_scaled = op(ds)
+
+        Recover the original feature grid via ``inverse_transform``::
+
+            pca = XarrayEstimator(PCA(n_components=3), sample_dim="time").fit(ssh)
+            inv = SklearnOp(pca, method="inverse_transform")
+            # → (time, lat, lon), not (time, component)
+            ssh_recon = inv(pca.transform(ssh))
+
+        NaN-laden ocean grid with the masking policy::
+
+            op = SklearnOp(StandardScaler(), variable="ssh", sample_dim="time",
+                           method="fit_transform", nan_policy="mask")
+            # Land/NaN rows are dropped pre-fit, then re-inserted as NaN on output.
     """
 
     def __init__(

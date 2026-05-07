@@ -286,12 +286,34 @@ class XarrayEstimator(BaseEstimator):
             a NaN (no finite rows to fit).
 
     Example:
-        >>> from sklearn.decomposition import PCA
-        >>> wrap = XarrayEstimator(PCA(n_components=3), sample_dim="time")
-        >>> scores = wrap.fit_transform(da)            # (time, component)
-        >>> recon  = wrap.inverse_transform(scores)    # (time, lat, lon)
-        >>> wrap.components_.shape                      # passthrough attr
-        (3, lat*lon)
+        Decompose an SSH cube with PCA, recover the original grid, and
+        reach into the fitted estimator's attributes::
+
+            >>> from sklearn.decomposition import PCA
+            >>> wrap = XarrayEstimator(PCA(n_components=3), sample_dim="time")
+            >>> scores = wrap.fit_transform(da)            # (time, component)
+            >>> recon = wrap.inverse_transform(scores)     # (time, lat, lon)
+            >>> wrap.components_.shape                     # passthrough attr
+            (3, lat*lon)
+
+        Cluster a multi-variable Dataset (column-concatenated)::
+
+            >>> from sklearn.cluster import KMeans
+            >>> wrap = XarrayEstimator(
+            ...     KMeans(n_clusters=4, n_init="auto"),
+            ...     sample_dim="time",
+            ... )
+            >>> labels = wrap.fit(ds).predict(ds)          # (time,)
+            >>> wrap.cluster_centers_.shape                # (4, n_concat_features)
+
+        NaN-tolerant fit on a land-masked grid::
+
+            >>> wrap = XarrayEstimator(
+            ...     PCA(n_components=5),
+            ...     sample_dim="time",
+            ...     nan_policy="mask",       # drop NaN rows pre-fit, re-insert post
+            ... )
+            >>> scores = wrap.fit_transform(ssh)           # land cells stay NaN
     """
 
     def __init__(
