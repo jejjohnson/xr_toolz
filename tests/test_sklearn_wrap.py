@@ -322,3 +322,39 @@ def test_sklearn_accessor_dataset_fit_transform() -> None:
 
     np.testing.assert_array_equal(via_accessor.values, explicit.values)
     assert via_accessor.dims == explicit.dims
+
+
+def test_nan_policy_mask_passes_through_integer_dtype() -> None:
+    # Integer dtypes can't carry NaN, so masking should be a no-op rather
+    # than crashing on np.isnan(int_array).
+    da = xr.DataArray(
+        np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.int64),
+        dims=("time", "feature"),
+        coords={"time": np.arange(3), "feature": ["a", "b", "c"]},
+    )
+
+    out = XarrayEstimator(
+        StandardScaler(),
+        sample_dim="time",
+        nan_policy="mask",
+    ).fit_transform(da)
+
+    expected = StandardScaler().fit_transform(da.values)
+    np.testing.assert_allclose(out.values, expected)
+
+
+def test_sklearn_accessor_passes_through_fitted_xarray_estimator() -> None:
+    # When a fitted XarrayEstimator is handed to the accessor, the wrapper
+    # must be reused as-is so its _fitted_meta_ recovers the original grid
+    # on inverse_transform.
+    da = _sample_da().drop_sel(time=[1, 4])
+    fitted = XarrayEstimator(PCA(n_components=2), sample_dim="time").fit(da)
+
+    scores = da.sklearn.transform(fitted)
+    recon = scores.sklearn.inverse_transform(fitted)
+
+    assert scores.dims == ("time", "component")
+    # If _fitted_meta_ were lost, recon.dims would be (time, component); the
+    # pass-through keeps the training grid:
+    assert recon.dims == da.dims
+    np.testing.assert_array_equal(recon["feature"], da["feature"])

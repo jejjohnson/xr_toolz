@@ -36,17 +36,20 @@ class _SklearnAccessor:
 
     Methods that need a *fitted* estimator (``transform``,
     ``inverse_transform``, ``predict``, ``predict_proba``, ``score``)
-    use a shortcut that sets ``estimator_`` on a fresh wrapper. That
-    shortcut bypasses the wrapper's ``_fitted_meta_`` capture, so
-    ``inverse_transform`` falls into the generic
-    ``(sample_dim, component)`` layout rather than restoring the
-    training feature grid. To get the original grid back, fit an
-    :class:`XarrayEstimator` explicitly:
+    accept either a fitted raw sklearn estimator or a fitted
+    :class:`XarrayEstimator`. **For ``inverse_transform`` to recover the
+    original feature grid, you must pass a fitted ``XarrayEstimator``** —
+    only the wrapper carries the ``_fitted_meta_`` needed to rebuild
+    ``(sample_dim, *feature_dims)``. A raw sklearn estimator goes
+    through the shortcut path and produces a generic
+    ``(sample_dim, component)`` layout instead.
 
     >>> from xr_toolz.utils import XarrayEstimator
     >>> from sklearn.decomposition import PCA
     >>> wrap = XarrayEstimator(PCA(n_components=2), sample_dim="time").fit(da)
-    >>> recon = wrap.inverse_transform(wrap.transform(da))   # → (time, lat, lon)
+    >>> # Fit once, reuse via the accessor — wrap is forwarded as-is:
+    >>> scores = da.sklearn.transform(wrap)              # → (time, component)
+    >>> recon = scores.sklearn.inverse_transform(wrap)   # → (time, lat, lon)
 
     Example:
         >>> # Fit-and-transform directly off a DataArray
@@ -89,6 +92,14 @@ class _SklearnAccessor:
         new_feature_dim: str = "component",
         nan_policy: NanPolicy = "propagate",
     ) -> XarrayEstimator:
+        # Pre-fitted XarrayEstimator: pass it through. Re-wrapping would
+        # construct a fresh wrapper without `_fitted_meta_`, so
+        # `inverse_transform` would fall into the generic
+        # `(sample_dim, new_feature_dim)` layout instead of restoring the
+        # original feature grid. Preserving the input wrapper keeps its
+        # training metadata intact.
+        if isinstance(estimator, XarrayEstimator):
+            return estimator
         wrap = self._wrap(
             estimator,
             sample_dim=sample_dim,

@@ -375,7 +375,18 @@ class XarrayEstimator(BaseEstimator):
         if self.nan_policy != "mask":
             return arr, meta
 
-        valid = ~np.isnan(arr).any(axis=1)
+        # Integer / bool / object dtypes can't carry NaN at all (np.isnan would
+        # raise TypeError), so masking is a no-op for them. pandas.isna handles
+        # mixed object dtypes (e.g. NaT, None) where the user has marked
+        # missingness via something other than IEEE NaN.
+        if np.issubdtype(arr.dtype, np.floating) or np.issubdtype(
+            arr.dtype, np.complexfloating
+        ):
+            valid = ~np.isnan(arr).any(axis=1)
+        elif arr.dtype == object:
+            valid = ~pd.isna(arr).any(axis=1)
+        else:
+            return arr, meta
         if valid.all():
             return arr, meta
         if not valid.any():
