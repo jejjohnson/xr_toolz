@@ -155,6 +155,59 @@ def resolved_scale(
     return find_intercept_1D(x=wavelengths, y=vals, level=level)
 
 
+def resolved_scale_2d(
+    score: xr.DataArray | xr.Dataset,
+    *,
+    level: float = 0.5,
+    space_dim: str = "freq_lon",
+    time_dim: str = "freq_time",
+) -> dict[str, float]:
+    """Summarize a 2-D contour crossing as min/max space-time wavelengths."""
+    score_da = score["score"] if isinstance(score, xr.Dataset) else score
+    segments = find_intercept_2D(
+        score_da,
+        level=level,
+        space_dim=space_dim,
+        time_dim=time_dim,
+    )
+    if not segments:
+        return {
+            "lambda_space_min": float("nan"),
+            "lambda_time_min": float("nan"),
+            "lambda_space_max": float("nan"),
+            "lambda_time_max": float("nan"),
+        }
+
+    space_freq = np.concatenate(
+        [
+            np.asarray(segment.sel(axis=space_dim).values, dtype=float)
+            for segment in segments
+        ]
+    )
+    time_freq = np.concatenate(
+        [
+            np.asarray(segment.sel(axis=time_dim).values, dtype=float)
+            for segment in segments
+        ]
+    )
+    space_freq = space_freq[space_freq > 0.0]
+    time_freq = time_freq[time_freq > 0.0]
+    return {
+        "lambda_space_min": (
+            float(1.0 / np.max(space_freq)) if space_freq.size else float("nan")
+        ),
+        "lambda_time_min": (
+            float(1.0 / np.max(time_freq)) if time_freq.size else float("nan")
+        ),
+        "lambda_space_max": (
+            float(1.0 / np.min(space_freq)) if space_freq.size else float("nan")
+        ),
+        "lambda_time_max": (
+            float(1.0 / np.min(time_freq)) if time_freq.size else float("nan")
+        ),
+    }
+
+
 def find_intercept_1D(
     x: np.ndarray,
     y: np.ndarray,

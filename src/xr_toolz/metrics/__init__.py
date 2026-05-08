@@ -21,6 +21,7 @@ from xr_toolz.metrics._src.array_segmented_psd import (
     segmented_csd,
     segmented_psd,
 )
+from xr_toolz.metrics._src.composite import psd_score_spacetime, rmse_skill_scores
 from xr_toolz.metrics._src.distributional import (
     CRPS,
     EnergyDistance,
@@ -74,15 +75,16 @@ from xr_toolz.metrics._src.probabilistic import (
     reliability_curve,
     spread_skill_ratio,
 )
-from xr_toolz.metrics._src.segmented_psd import (
-    SegmentedPSDScore,
-    along_track_psd_score,
-    psd_score_by_region,
 from xr_toolz.metrics._src.residuals import (
     BinnedResiduals2D,
     RegionScores,
     bin_residuals_2d,
     scores_by_region,
+)
+from xr_toolz.metrics._src.segmented_psd import (
+    SegmentedPSDScore,
+    along_track_psd_score,
+    psd_score_by_region,
 )
 from xr_toolz.metrics._src.spectral import (
     BandLimitedRMSE,
@@ -95,6 +97,7 @@ from xr_toolz.metrics._src.spectral import (
     psd_error,
     psd_score,
     resolved_scale,
+    resolved_scale_2d,
 )
 from xr_toolz.metrics._src.structural import (
     SSIM,
@@ -167,18 +170,21 @@ __all__ = [
     "psd_error",
     "psd_score",
     "psd_score_by_region",
+    "psd_score_spacetime",
     "pv_conservation_error",
     "r2_score",
     "rank_histogram",
     "rank_methods",
     "reliability_curve",
     "resolved_scale",
+    "resolved_scale_2d",
     "rmse",
+    "rmse_skill_scores",
+    "scores_by_region",
     "segment_signal",
     "segmented_coherence",
     "segmented_csd",
     "segmented_psd",
-    "scores_by_region",
     "skill_by_lead_time",
     "spread_skill_ratio",
     "ssim",

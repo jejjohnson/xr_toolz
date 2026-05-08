@@ -15,6 +15,7 @@ helpers (:func:`along_track_psd_score`, :func:`psd_score_by_region`,
 :mod:`xr_toolz.metrics._src.segmented_psd`.
 """
 
+from xr_toolz.metrics._src.composite import psd_score_spacetime
 from xr_toolz.metrics._src.segmented_psd import (
     SegmentedPSDScore,
     along_track_psd_score,
@@ -30,6 +31,7 @@ from xr_toolz.metrics._src.spectral import (
     psd_error,
     psd_score,
     resolved_scale,
+    resolved_scale_2d,
 )
 
 
@@ -45,5 +47,7 @@ __all__ = [
     "psd_error",
     "psd_score",
     "psd_score_by_region",
+    "psd_score_spacetime",
     "resolved_scale",
+    "resolved_scale_2d",
 ]
