@@ -1,0 +1,108 @@
+"""Plotting helpers for wavelet spectra."""
+
+from __future__ import annotations
+
+import numpy as np
+import xarray as xr
+
+
+def plot_resolved_scale_map(
+    rs_map: xr.DataArray,
+    *,
+    ax=None,
+    cmap: str = "viridis",
+    levels=None,
+):
+    """Plot a 2-D map of resolved scale in kilometres."""
+    import matplotlib.pyplot as plt
+
+    if ax is None:
+        _, ax = plt.subplots()
+    data = np.asarray(rs_map.values, dtype=float)
+    extent = _extent(rs_map)
+    if levels is None:
+        image = ax.imshow(data, origin="lower", cmap=cmap, extent=extent, aspect="auto")
+        ax.figure.colorbar(image, ax=ax)
+    else:
+        y = np.asarray(rs_map[rs_map.dims[0]].values, dtype=float)
+        x = np.asarray(rs_map[rs_map.dims[1]].values, dtype=float)
+        ax.contourf(x, y, data, cmap=cmap, levels=levels)
+    ax.set_title(rs_map.name or "Resolved scale")
+    return ax
+
+
+def plot_wavelet_spectrum_1d(
+    spectrum: xr.DataArray,
+    *,
+    ax=None,
+    ref_slopes=("-3", "-5/3"),
+):
+    """Plot a one-dimensional wavelet spectrum."""
+    import matplotlib.pyplot as plt
+
+    if ax is None:
+        _, ax = plt.subplots()
+    scale_dim = spectrum.dims[0]
+    x = np.asarray(spectrum[scale_dim].values, dtype=float)
+    y = np.asarray(spectrum.values, dtype=float)
+    ax.loglog(x, y, label=spectrum.name or "spectrum")
+    finite = np.isfinite(y) & (y > 0)
+    if finite.any():
+        x0 = float(x[finite][0])
+        y0 = float(y[finite][0])
+        for slope in ref_slopes:
+            exponent = _parse_slope(slope)
+            ax.loglog(x, y0 * (x / x0) ** exponent, linestyle="--", label=slope)
+    ax.set_xlabel(scale_dim)
+    ax.set_ylabel("power")
+    ax.legend()
+    return ax
+
+
+def plot_wavelet_anisotropy(
+    spectrum: xr.DataArray,
+    *,
+    ax=None,
+    log: bool = True,
+):
+    """Plot a polar angle-scale heatmap from a directional spectrum."""
+    import matplotlib.pyplot as plt
+
+    if "angle" not in spectrum.dims:
+        raise ValueError("spectrum must include an 'angle' dimension")
+    scale_dim = next(dim for dim in spectrum.dims if dim != "angle")
+    if ax is None:
+        _, ax = plt.subplots(subplot_kw={"projection": "polar"})
+    values = np.asarray(spectrum.transpose("angle", scale_dim).values, dtype=float)
+    if log:
+        values = np.log10(np.maximum(values, np.finfo(float).tiny))
+    theta = np.asarray(spectrum["angle"].values, dtype=float)
+    radius = np.asarray(spectrum[scale_dim].values, dtype=float)
+    ax.grid(False)
+    ax.pcolormesh(theta, radius, values.T, shading="auto")
+    ax.set_ylabel(scale_dim)
+    return ax
+
+
+def _parse_slope(slope: str | float) -> float:
+    if isinstance(slope, str) and "/" in slope:
+        num, den = slope.split("/", maxsplit=1)
+        return float(num) / float(den)
+    return float(slope)
+
+
+def _extent(da: xr.DataArray) -> tuple[float, float, float, float] | None:
+    if da.ndim != 2:
+        return None
+    y = np.asarray(da[da.dims[0]].values, dtype=float)
+    x = np.asarray(da[da.dims[1]].values, dtype=float)
+    if x.size < 2 or y.size < 2:
+        return None
+    dx = float(np.diff(x).mean())
+    dy = float(np.diff(y).mean())
+    return (
+        float(x[0] - 0.5 * dx),
+        float(x[-1] + 0.5 * dx),
+        float(y[0] - 0.5 * dy),
+        float(y[-1] + 0.5 * dy),
+    )
