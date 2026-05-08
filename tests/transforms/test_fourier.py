@@ -103,8 +103,8 @@ def test_drop_negative_frequencies_renames_old_conditional_average(da_grid_daily
     assert (reduced["freq_lon"] > 0).all()
 
 
-def _rotary_fixture(*, sign: float = 1.0) -> xr.Dataset:
-    """Build one Fourier mode; ``sign=1`` is CCW and ``sign=-1`` is CW."""
+def _rotary_fixture(*, rotation_direction: float = 1.0) -> xr.Dataset:
+    """Build one Fourier mode; ``1`` is CCW and ``-1`` is CW."""
     n = 64
     k = 3
     x = np.arange(n, dtype=float)
@@ -112,14 +112,16 @@ def _rotary_fixture(*, sign: float = 1.0) -> xr.Dataset:
     return xr.Dataset(
         {
             "u": ("x", np.cos(phase)),
-            "v": ("x", sign * np.sin(phase)),
+            "v": ("x", rotation_direction * np.sin(phase)),
         },
         coords={"x": x},
     )
 
 
 def test_rotary_spectrum_ccw_signal_peaks_positive_wavenumber():
-    out = rotary_spectrum(_rotary_fixture(sign=1.0), u_var="u", v_var="v", dim="x")
+    out = rotary_spectrum(
+        _rotary_fixture(rotation_direction=1.0), u_var="u", v_var="v", dim="x"
+    )
     k = 3.0 / 64.0
     assert float(out["psd_ccw"].idxmax("wavenumber")) == pytest.approx(k)
     assert float(out["psd_cw"].sel(wavenumber=k)) == pytest.approx(0.0, abs=1e-12)
@@ -127,14 +129,16 @@ def test_rotary_spectrum_ccw_signal_peaks_positive_wavenumber():
 
 
 def test_rotary_spectrum_cw_signal_has_positive_polarization():
-    out = rotary_spectrum(_rotary_fixture(sign=-1.0), u_var="u", v_var="v", dim="x")
+    out = rotary_spectrum(
+        _rotary_fixture(rotation_direction=-1.0), u_var="u", v_var="v", dim="x"
+    )
     k = 3.0 / 64.0
     assert float(out["psd_cw"].idxmax("wavenumber")) == pytest.approx(k)
     assert float(out["polarization"].sel(wavenumber=k)) == pytest.approx(1.0)
 
 
 def test_rotary_spectrum_real_only_signal_is_unpolarized():
-    ds = _rotary_fixture(sign=1.0)
+    ds = _rotary_fixture(rotation_direction=1.0)
     ds["v"] = xr.zeros_like(ds["v"])
     out = rotary_spectrum(ds, u_var="u", v_var="v", dim="x")
     k = 3.0 / 64.0
@@ -142,7 +146,7 @@ def test_rotary_spectrum_real_only_signal_is_unpolarized():
 
 
 def test_rotary_spectrum_parseval_matches_velocity_variance():
-    ds = _rotary_fixture(sign=1.0)
+    ds = _rotary_fixture(rotation_direction=1.0)
     out = rotary_spectrum(ds, u_var="u", v_var="v", dim="x")
     dk = float(out["wavenumber"].diff("wavenumber").median())
     spectral_variance = float((out["psd_cw"] + out["psd_ccw"]).sum() * dk)
@@ -151,7 +155,7 @@ def test_rotary_spectrum_parseval_matches_velocity_variance():
 
 
 def test_rotary_spectrum_avg_dims_reduce_outputs():
-    ds = _rotary_fixture(sign=1.0).expand_dims(lat=[0.0, 1.0])
+    ds = _rotary_fixture(rotation_direction=1.0).expand_dims(lat=[0.0, 1.0])
     ds["u"] = ds["u"] * xr.DataArray([1.0, 2.0], dims="lat", coords={"lat": ds["lat"]})
     ds["v"] = ds["v"] * xr.DataArray([1.0, 2.0], dims="lat", coords={"lat": ds["lat"]})
     out = rotary_spectrum(ds, u_var="u", v_var="v", dim="x", avg_dims=("lat",))

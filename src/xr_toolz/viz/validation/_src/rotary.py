@@ -28,6 +28,8 @@ class RotaryPolarizationPanel(_ValidationPanel):
         **kw: Any,
     ) -> None:
         super().__init__(figsize=figsize, **kw)
+        if vmin >= vmax:
+            raise ValueError(f"vmin must be less than vmax; got {vmin=} and {vmax=}.")
         self.var = var
         self.wavenumber_dim = wavenumber_dim
         self.y_dim = y_dim

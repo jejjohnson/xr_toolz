@@ -34,6 +34,7 @@ _DEFAULT_PSD_KWARGS: dict[str, Any] = {
     "true_amplitude": True,
     "truncate": True,
 }
+_POLARIZATION_DENOM_EPS = np.finfo(float).eps
 
 
 def _output_name(da: xr.DataArray, suffix: str, fallback: str = "field") -> str:
@@ -175,7 +176,8 @@ def rotary_spectrum(
     w = ds[u_var] + 1j * ds[v_var]
     spec = xrft.fft(w, dim=[dim], window=None, detrend="constant", true_amplitude=False)
     freq_dim = f"freq_{dim}"
-    psd = (np.abs(spec) ** 2) * (_coord_spacing(ds[dim]) / ds.sizes[dim])
+    density_scale = _coord_spacing(ds[dim]) / ds.sizes[dim]
+    psd = (np.abs(spec) ** 2) * density_scale
 
     psd_ccw = psd.where(psd[freq_dim] > 0.0, drop=True).rename({freq_dim: "wavenumber"})
     neg = psd.where(psd[freq_dim] < 0.0, drop=True)
@@ -189,8 +191,7 @@ def rotary_spectrum(
     psd_cw.name = "psd_cw"
 
     denom = psd_cw + psd_ccw
-    eps = np.finfo(float).eps
-    polarization = ((psd_cw - psd_ccw) / denom).where(denom > eps)
+    polarization = ((psd_cw - psd_ccw) / denom).where(denom > _POLARIZATION_DENOM_EPS)
     polarization.name = "polarization"
     out = xr.Dataset(
         {"psd_ccw": psd_ccw, "psd_cw": psd_cw, "polarization": polarization}
@@ -203,6 +204,8 @@ def rotary_spectrum(
 
 def _coord_spacing(coord: xr.DataArray) -> float:
     if coord.size < 2:
+        # A singleton axis has no resolvable sample spacing; use unit spacing so
+        # callers still get deterministic density scaling.
         return 1.0
     values = np.asarray(coord.values)
     if np.issubdtype(values.dtype, np.datetime64):
