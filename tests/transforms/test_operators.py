@@ -76,10 +76,10 @@ def test_ke_spectral_flux_operator(vector_ds):
 
 
 def test_enstrophy_spectral_flux_operator(vector_ds):
-    out = EnstrophySpectralFlux("u", "v", ("x", "y"), window=None, detrend=None)(
-        vector_ds
-    )
-    assert {"transfer", "flux"} <= set(out.data_vars)
+    out = EnstrophySpectralFlux(
+        "u", "v", ("x", "y"), window=None, detrend=None, return_2d=True
+    )(vector_ds)
+    assert {"transfer", "flux", "transfer_2d"} <= set(out.data_vars)
 
 
 def test_dct_operator(ds):

@@ -265,9 +265,9 @@ def enstrophy_spectral_flux(
     u_hat, v_hat, _du_dx, _du_dy, _dv_dx, _dv_dy = _fourier_uv_gradients(
         u, v, dims, window=window, detrend=detrend
     )
-    zeta_hat = (
-        2.0j * np.pi * (v_hat[freq_dims[0]] * v_hat - u_hat[freq_dims[1]] * u_hat)
-    )
+    kx = v_hat[freq_dims[0]]
+    ky = u_hat[freq_dims[1]]
+    zeta_hat = 2.0j * np.pi * (kx * v_hat - ky * u_hat)
     dzeta_dx = _gradient_from_hat(zeta_hat, freq_dims[0], freq_dims, u)
     dzeta_dy = _gradient_from_hat(zeta_hat, freq_dims[1], freq_dims, u)
     adv_zeta = u * dzeta_dx + v * dzeta_dy

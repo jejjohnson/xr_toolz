@@ -124,7 +124,17 @@ def test_drop_negative_frequencies_renames_old_conditional_average(da_grid_daily
     assert (reduced["freq_lon"] > 0).all()
 
 
-def test_ke_spectral_flux_conserves_transfer_and_returns_2d(taylor_green_uv):
+def test_ke_spectral_flux_conserves_transfer(taylor_green_uv):
+    u, v = taylor_green_uv
+    out = ke_spectral_flux(
+        u, v, dim=("x", "y"), window=None, detrend=None, return_2d=True
+    )
+    assert abs(float(out["transfer"].sum())) < 1e-16
+    assert abs(float(out["flux"].isel(freq_r=0))) < 1e-16
+    assert abs(float(out["flux"].isel(freq_r=-1))) < 1e-16
+
+
+def test_ke_spectral_flux_returns_2d(taylor_green_uv):
     u, v = taylor_green_uv
     out = ke_spectral_flux(
         u, v, dim=("x", "y"), window=None, detrend=None, return_2d=True
@@ -132,9 +142,6 @@ def test_ke_spectral_flux_conserves_transfer_and_returns_2d(taylor_green_uv):
     assert set(out.data_vars) == {"transfer", "flux", "transfer_2d"}
     assert out["transfer_2d"].sizes["freq_x"] == u.sizes["x"]
     assert out["transfer_2d"].sizes["freq_y"] == u.sizes["y"]
-    assert abs(float(out["transfer"].sum())) < 1e-16
-    assert abs(float(out["flux"].isel(freq_r=0))) < 1e-16
-    assert abs(float(out["flux"].isel(freq_r=-1))) < 1e-16
 
 
 def test_ke_spectral_flux_avg_dims_matches_manual_average(taylor_green_uv):
