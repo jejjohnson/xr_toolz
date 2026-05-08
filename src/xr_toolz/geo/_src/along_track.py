@@ -16,19 +16,30 @@ _GEOD = Geod(ellps="WGS84")
 def median_dx_km(lon: ArrayLike, lat: ArrayLike) -> float:
     """Median geodesic spacing between consecutive points in kilometres.
 
+    The inputs must be 1-D — a flattened multi-track array would mix
+    endpoints from unrelated tracks into the spacing estimate, biasing
+    the inferred FIR cutoff. For multi-track datasets, derive spacing
+    per track or pass ``spacing_km`` to :func:`bandpass_wavelength`
+    explicitly.
+
     Args:
-        lon: Longitude samples in degrees.
-        lat: Latitude samples in degrees, with the same shape as ``lon``.
+        lon: 1-D longitude samples in degrees.
+        lat: 1-D latitude samples in degrees, same shape as ``lon``.
 
     Returns:
         Median WGS-84 geodesic segment length in kilometres.
     """
-    lon_arr = np.asarray(lon, dtype=float).ravel()
-    lat_arr = np.asarray(lat, dtype=float).ravel()
+    lon_arr = np.asarray(lon, dtype=float)
+    lat_arr = np.asarray(lat, dtype=float)
     if lon_arr.shape != lat_arr.shape:
         raise ValueError(
             f"lon and lat must have the same shape; got {lon_arr.shape} and "
             f"{lat_arr.shape}"
+        )
+    if lon_arr.ndim != 1:
+        raise ValueError(
+            "median_dx_km expects 1-D inputs along a single track; got shape "
+            f"{lon_arr.shape}. Pass spacing_km explicitly for multi-track data."
         )
     if lon_arr.size < 2:
         raise ValueError("at least two lon/lat points are required")
@@ -98,19 +109,32 @@ def bandpass_wavelength(
             f"{lambda_max_km}"
         )
     if spacing_km is None:
-        spacing_km = median_dx_km(ds[lon], ds[lat])
+        # Restrict spacing inference to the filter dim only; otherwise a
+        # 2-D coord (multi-track grid) would mix unrelated endpoints into
+        # the median.
+        lon_da = ds[lon]
+        lat_da = ds[lat]
+        if lon_da.dims != (dim,) or lat_da.dims != (dim,):
+            raise ValueError(
+                f"Cannot infer spacing: {lon!r}/{lat!r} are not 1-D along "
+                f"{dim!r} (got dims {lon_da.dims} / {lat_da.dims}). Pass "
+                "spacing_km explicitly."
+            )
+        spacing_km = median_dx_km(lon_da.values, lat_da.values)
     if spacing_km <= 0:
         raise ValueError(f"spacing_km must be > 0, got {spacing_km}")
 
     if lambda_min_km is None:
-        if lambda_max_km is None:
-            raise ValueError("lambda_max_km is required for low-pass filtering")
-        btype = "low"
+        # Only an upper wavelength bound is set — keep wavelengths shorter
+        # than lambda_max_km, i.e. high-pass with cutoff at the long edge.
+        btype = "high"
         cutoff: float | tuple[float, float] = _cutoff_from_wavelength(
             lambda_max_km, spacing_km
         )
     elif lambda_max_km is None:
-        btype = "high"
+        # Only a lower wavelength bound is set — keep wavelengths longer
+        # than lambda_min_km, i.e. low-pass with cutoff at the short edge.
+        btype = "low"
         cutoff = _cutoff_from_wavelength(lambda_min_km, spacing_km)
     else:
         btype = "bandpass"

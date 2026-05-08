@@ -58,6 +58,53 @@ def test_bandpass_wavelength_translates_cutoffs(monkeypatch):
     assert calls["cutoff"] == pytest.approx((0.1, 0.5))
 
 
+def test_bandpass_wavelength_lambda_min_only_is_low_pass(monkeypatch):
+    """``lambda_min_km`` alone keeps wavelengths >= the bound, i.e.
+    cuts short wavelengths — that's a low-pass on the frequency axis."""
+    ds = _track_dataset()
+    calls: dict[str, object] = {}
+    monkeypatch.setattr(
+        along_track, "fir_filter", lambda ds, **k: (calls.update(k), ds)[1]
+    )
+    along_track.bandpass_wavelength(
+        ds, dim="num_lines", lambda_min_km=20.0, spacing_km=5.0
+    )
+    assert calls["btype"] == "low"
+    assert calls["cutoff"] == pytest.approx(0.5)
+
+
+def test_bandpass_wavelength_lambda_max_only_is_high_pass(monkeypatch):
+    """``lambda_max_km`` alone keeps wavelengths <= the bound, i.e.
+    cuts long wavelengths — that's a high-pass on the frequency axis."""
+    ds = _track_dataset()
+    calls: dict[str, object] = {}
+    monkeypatch.setattr(
+        along_track, "fir_filter", lambda ds, **k: (calls.update(k), ds)[1]
+    )
+    along_track.bandpass_wavelength(
+        ds, dim="num_lines", lambda_max_km=100.0, spacing_km=5.0
+    )
+    assert calls["btype"] == "high"
+    assert calls["cutoff"] == pytest.approx(0.1)
+
+
+def test_bandpass_wavelength_raises_on_multidim_lon_lat_without_spacing():
+    """Multi-track / 2-D coords would mix endpoints in the median, so
+    spacing inference must refuse and ask for ``spacing_km`` explicitly."""
+    n = 16
+    ds = xr.Dataset(
+        {"sla": (("track", "num_lines"), np.zeros((2, n)))},
+        coords={
+            "track": [0, 1],
+            "num_lines": np.arange(n),
+            "lon": (("track", "num_lines"), np.tile(np.arange(n) * 0.05, (2, 1))),
+            "lat": (("track", "num_lines"), np.zeros((2, n))),
+        },
+    )
+    with pytest.raises(ValueError, match="not 1-D along"):
+        bandpass_wavelength(ds, dim="num_lines", lambda_min_km=20.0)
+
+
 def test_bandpass_wavelength_raises_below_nyquist():
     ds = _track_dataset()
     with pytest.raises(ValueError, match="Nyquist"):

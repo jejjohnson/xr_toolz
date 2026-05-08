@@ -16,7 +16,14 @@ from collections.abc import Sequence
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy.ndimage import gaussian_filter1d
-from scipy.signal import butter, filtfilt, kaiser_beta, kaiserord, sosfiltfilt, windows
+from scipy.signal import (
+    butter,
+    filtfilt,
+    kaiser_beta,
+    kaiserord,
+    sosfiltfilt,
+    windows as signal_windows,
+)
 
 
 _BUTTER_BTYPES: frozenset[str] = frozenset(
@@ -116,7 +123,7 @@ def _lowpass_fir_taps(
         if attenuation_db is None:
             raise ValueError("attenuation_db is required for Kaiser FIR taps")
         beta = kaiser_beta(attenuation_db)
-        window = windows.kaiser(num_taps, beta, sym=True)
+        window = signal_windows.kaiser(num_taps, beta, sym=True)
     taps *= window
     taps /= taps.sum()
     return taps
