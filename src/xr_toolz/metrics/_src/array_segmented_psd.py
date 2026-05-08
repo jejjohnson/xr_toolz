@@ -88,7 +88,7 @@ def segment_signal(
         return np.empty((0, npt), dtype=float)
 
     stride = _stride(npt, overlap)
-    if gap_indices is None and (min_segment_length is None or values.size >= npt):
+    if gap_indices is None and min_segment_length is None:
         segments = sliding_window_view(values, npt)[::stride]
     else:
         segments = _segments_from_bounds(values, bounds)

@@ -74,9 +74,7 @@ def _segment_lons(
 ) -> NDArray[np.floating]:
     out = np.empty(len(bounds), dtype=float)
     for i, (start, stop) in enumerate(bounds):
-        out[i] = np.mod(
-            circmean(np.mod(lon[start:stop], 360.0), high=360.0, low=0.0), 360.0
-        )
+        out[i] = np.mod(circmean(lon[start:stop], high=360.0, low=0.0), 360.0)
         if np.isclose(out[i], 360.0):
             out[i] = 0.0
     return out
@@ -226,7 +224,11 @@ def along_track_psd_score(
             )
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        score = 1.0 - psd_err / psd_ref
+        score = np.where(
+            np.isfinite(psd_ref) & (psd_ref > 0.0),
+            1.0 - psd_err / psd_ref,
+            np.nan,
+        )
         wavelength = 1.0 / freqs
 
     coords = {
@@ -292,7 +294,11 @@ def psd_score_by_region(
                 out[name][i, j] = np.nanmean(ds_segments[name].values[mask], axis=0)
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        score = 1.0 - out["psd_err"] / out["psd_ref"]
+        score = np.where(
+            np.isfinite(out["psd_ref"]) & (out["psd_ref"] > 0.0),
+            1.0 - out["psd_err"] / out["psd_ref"],
+            np.nan,
+        )
 
     coords = {
         "lat": ("lat", lat_out, {"units": "degrees_north"}),

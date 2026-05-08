@@ -72,7 +72,7 @@ def _track_dataset(n: int = 192) -> xr.Dataset:
     dim = "num_lines"
     ref = rng.standard_normal(n)
     pred = 0.8 * ref
-    lon = np.mod(np.linspace(-20.0, 20.0, n), 360.0)
+    lon = np.linspace(-20.0, 20.0, n)
     lat = np.linspace(-5.0, 5.0, n)
     seconds = np.arange(n, dtype="timedelta64[s]")
     seconds[96:] += np.timedelta64(10, "s")
