@@ -28,9 +28,16 @@ def bin_residuals_2d(
     """Bin along-track residuals onto a 2-D latitude/longitude grid."""
     lon_edges = np.asarray(lon_bins, dtype=float)
     lat_edges = np.asarray(lat_bins, dtype=float)
-    residual = (ds_track[var_pred] - ds_track[var_ref]).values.ravel()
-    lon_values = ds_track[lon].values.ravel()
-    lat_values = ds_track[lat].values.ravel()
+    # Broadcast residual + coords against each other so extra dims on
+    # var_ref/var_pred (e.g. an ensemble axis) line up with lon/lat
+    # rather than producing length-mismatched ravels.
+    residual_da = ds_track[var_pred] - ds_track[var_ref]
+    residual_da, lon_da, lat_da = xr.broadcast(
+        residual_da, ds_track[lon], ds_track[lat]
+    )
+    residual = residual_da.values.ravel()
+    lon_values = lon_da.values.ravel()
+    lat_values = lat_da.values.ravel()
     valid = np.isfinite(residual) & np.isfinite(lon_values) & np.isfinite(lat_values)
 
     data_vars: dict[str, tuple[tuple[str, str], np.ndarray]] = {}
@@ -194,10 +201,29 @@ class RegionScores(Operator):
         )
 
     def get_config(self) -> dict[str, Any]:
+        # ``regions`` is an opaque object (xr.DataArray or
+        # regionmask.Regions) and is not JSON-serializable. Mirror the
+        # pattern used by RegridLike: emit a stable summary so the config
+        # is JSON-safe, and document that callers must re-supply the
+        # actual regions object when reconstructing the operator.
+        if isinstance(self.regions, xr.DataArray):
+            regions_summary: dict[str, Any] = {
+                "kind": "DataArray",
+                "name": self.regions.name,
+                "dims": list(self.regions.dims),
+            }
+        elif isinstance(self.regions, regionmask.Regions):
+            regions_summary = {
+                "kind": "regionmask.Regions",
+                "name": self.regions.name,
+                "regions": list(self.regions.names),
+            }
+        else:
+            regions_summary = {"kind": type(self.regions).__name__}
         return {
             "var_ref": self.var_ref,
             "var_pred": self.var_pred,
-            "regions": self.regions,
+            "regions": regions_summary,
             "lon": self.lon,
             "lat": self.lat,
             "metrics": list(self.metrics),
@@ -223,6 +249,9 @@ def _region_labels(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", FutureWarning)
                 mask = regions.mask(ds_track[lon], ds_track[lat], method="shapely")
+            # Broadcast the regionmask result against the data so extra
+            # dims on var_ref (e.g. ensemble) line up with region labels.
+            mask = mask.broadcast_like(ds_track[var_ref])
             number_to_name = {
                 number: str(name)
                 for number, name in zip(regions.numbers, regions.names, strict=True)
@@ -241,7 +270,10 @@ def _region_labels(
 
 def _score_region(ref: np.ndarray, pred: np.ndarray, metric: str) -> float:
     if ref.size == 0:
-        return np.nan
+        # ``count`` is a sample size, so an empty selection means zero
+        # matched points — not a missing measurement. All other metrics
+        # are undefined on an empty sample and stay NaN.
+        return 0.0 if metric == "count" else np.nan
     residual = pred - ref
     if metric == "rmse":
         return float(np.sqrt(np.mean(residual**2)))

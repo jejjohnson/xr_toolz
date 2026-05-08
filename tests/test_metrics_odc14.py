@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import warnings
 
 import numpy as np
@@ -173,7 +174,41 @@ def test_operator_configs_round_trip() -> None:
         ["a", "a", "b", "b"], dims="point", coords={"point": ds.point}
     )
     scores = RegionScores(var_ref="ref", var_pred="pred", regions=regions)
-    xr.testing.assert_identical(RegionScores(**scores.get_config())(ds), scores(ds))
+    # get_config returns a JSON-safe summary of regions, not the actual
+    # object; callers must re-supply the regions when reconstructing.
+    cfg = scores.get_config()
+    assert cfg["regions"] == {
+        "kind": "DataArray",
+        "name": None,
+        "dims": ["point"],
+    }
+    json.dumps(cfg)  # JSON-roundtrip-safe
+    rebuilt_cfg = {**cfg, "regions": regions}
+    xr.testing.assert_identical(RegionScores(**rebuilt_cfg)(ds), scores(ds))
+
+
+def test_scores_by_region_count_is_zero_for_empty_region() -> None:
+    ds = _track_dataset()
+    # All four points share the same region, so a fixed second region
+    # collects zero points and ``count`` should report 0, not NaN.
+    regions = xr.DataArray(
+        ["a", "a", "a", "a"], dims="point", coords={"point": ds.point}
+    )
+    out = scores_by_region(
+        ds,
+        var_ref="ref",
+        var_pred="pred",
+        regions=regions,
+        metrics=("count", "rmse"),
+    )
+    np.testing.assert_array_equal(out["count"].values, np.array([4.0]))
+
+
+def test_dm_test_accepts_errors_keyword_naming() -> None:
+    """The renamed parameter names work as keyword args."""
+    e = np.array([0.5, -0.5, 0.5, -0.5, 0.5])
+    stat, _ = dm_test(errors_a=e, errors_b=e)
+    np.testing.assert_allclose(stat, 0.0)
 
 
 def _track_dataset() -> xr.Dataset:

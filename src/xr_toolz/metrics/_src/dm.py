@@ -8,25 +8,32 @@ from scipy import stats
 
 
 def dm_test(
-    loss_a: ArrayLike,
-    loss_b: ArrayLike,
+    errors_a: ArrayLike,
+    errors_b: ArrayLike,
     *,
     h: int = 1,
     alternative: str = "two-sided",
     power: float = 2.0,
     hln_correction: bool = True,
 ) -> tuple[float, float]:
-    """Test equal predictive accuracy for two paired error sequences."""
+    """Test equal predictive accuracy for two paired *error* sequences.
+
+    The inputs are raw forecast errors (residuals); the loss function
+    is ``|e|**power`` (defaults to squared error). Pass raw errors —
+    do not pre-square or pre-abs them, or the transform will be
+    applied twice.
+    """
     if h < 1:
         raise ValueError("h must be at least 1.")
     if alternative not in {"two-sided", "less", "greater"}:
         raise ValueError("alternative must be 'two-sided', 'less', or 'greater'.")
 
-    a = np.asarray(loss_a, dtype=float)
-    b = np.asarray(loss_b, dtype=float)
+    a = np.asarray(errors_a, dtype=float)
+    b = np.asarray(errors_b, dtype=float)
     if a.shape != b.shape:
         raise ValueError(
-            f"loss_a and loss_b must have matching shapes; got {a.shape} and {b.shape}."
+            f"errors_a and errors_b must have matching shapes; got {a.shape} and "
+            f"{b.shape}."
         )
 
     d = np.abs(a.ravel()) ** power - np.abs(b.ravel()) ** power

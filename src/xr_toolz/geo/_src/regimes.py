@@ -16,16 +16,16 @@ KM_PER_DEGREE_AT_EQUATOR = 111.0
 
 
 @lru_cache
-def coastal_regions(
-    *,
-    distance_km: float = 200.0,
-    resolution: str = "110",
-) -> regionmask.Regions:
-    """Return a coarse two-region coastal/open-ocean partition."""
+def coastal_regions(*, distance_km: float = 200.0) -> regionmask.Regions:
+    """Return a coarse two-region coastal/open-ocean partition.
+
+    Built from a hand-rolled bounding-box approximation of the major
+    land masses (see :func:`_coarse_land_polygons`). The geometry is
+    fixed; ``distance_km`` controls the buffer width applied to the
+    landmasses to delimit the coastal band.
+    """
     if distance_km < 0:
         raise ValueError("distance_km must be non-negative.")
-    if resolution not in {"110", "50", "10"}:
-        raise ValueError("resolution must be one of '110', '50', or '10'.")
 
     distance_deg = distance_km / KM_PER_DEGREE_AT_EQUATOR
     world = box(-180.0, -90.0, 180.0, 90.0)
@@ -37,7 +37,7 @@ def coastal_regions(
         [coastal, open_ocean],
         names=["coastal", "open_ocean"],
         abbrevs=["coast", "open"],
-        name=f"coastal_{distance_km:g}km_{resolution}",
+        name=f"coastal_{distance_km:g}km",
     )
 
 
