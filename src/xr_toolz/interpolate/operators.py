@@ -82,6 +82,9 @@ class FillNaNLaplacian(Operator):
         lon: str = "lon",
         lat: str = "lat",
     ):
+        # Validate eagerly so misconfigured operators fail at construction
+        # time rather than deep inside _apply (mirrors Coarsen).
+        _gap_fill._validate_laplacian_args(max_iter, tol, relaxation, boundary)
         self.max_iter = max_iter
         self.tol = tol
         self.relaxation = relaxation

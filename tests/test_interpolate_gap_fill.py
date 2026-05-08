@@ -155,3 +155,18 @@ def test_fillnan_laplacian_operator_round_trips_and_skips_non_spatial_vars() -> 
     }
     assert np.isfinite(out["field"].values).all()
     xr.testing.assert_identical(out["series"], ds["series"])
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"max_iter": -1}, "max_iter"),
+        ({"tol": -1.0}, "tol"),
+        ({"relaxation": 0.0}, "relaxation"),
+        ({"relaxation": 2.0}, "relaxation"),
+        ({"boundary": "banana"}, "boundary"),
+    ],
+)
+def test_fillnan_laplacian_operator_validates_args_eagerly(kwargs, match) -> None:
+    with pytest.raises(ValueError, match=match):
+        FillNaNLaplacian(**kwargs)
