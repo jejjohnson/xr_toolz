@@ -140,7 +140,7 @@ def test_polygon_from_geojson_dict_and_path(tmp_path):
     assert region_to_dict(from_dict) == region_to_dict(from_path)
 
 
-def test_resolve_region_and_unknown_error():
+def test_resolve_region_and_unknown_region_error():
     spec = resolve_region("gulf_stream")
 
     assert resolve_region(spec) is spec

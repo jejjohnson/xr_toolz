@@ -139,6 +139,7 @@ REGIONS: dict[str, RegionSpec] = {
     "ibi": custom_region(
         id="ibi",
         display_name="Iberia-Biscay-Ireland (IBI)",
+        # Bounds mirror the IBI plotting extent used by existing ocean panels.
         lat_min=26.17,
         lat_max=56.08,
         lon_min=-19.08,
@@ -237,9 +238,16 @@ def _load_json_file(path: Path) -> dict[str, Any]:
 def _geometry_from_geojson(data: dict[str, Any]) -> BaseGeometry:
     kind = data.get("type")
     if kind == "Feature":
+        if "geometry" not in data:
+            raise ValueError("GeoJSON Feature must include a 'geometry' field.")
         return shape(data["geometry"])
     if kind == "FeatureCollection":
         return unary_union([shape(feature["geometry"]) for feature in data["features"]])
+    if kind not in {"Polygon", "MultiPolygon", "GeometryCollection"}:
+        raise ValueError(
+            f"Unsupported GeoJSON geometry type {kind!r}; expected Feature, "
+            "FeatureCollection, Polygon, MultiPolygon, or GeometryCollection."
+        )
     return shape(data)
 
 
