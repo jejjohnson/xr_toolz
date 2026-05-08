@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import regionmask
 import xarray as xr
 from scipy.stats import binned_statistic_2d
 
@@ -69,7 +70,7 @@ def scores_by_region(
     *,
     var_ref: str,
     var_pred: str,
-    regions: Any,
+    regions: xr.DataArray | regionmask.Regions,
     lon: str = "longitude",
     lat: str = "latitude",
     metrics: Sequence[str] = ("rmse", "bias", "correlation", "explained_variance"),
@@ -166,7 +167,7 @@ class RegionScores(Operator):
         *,
         var_ref: str,
         var_pred: str,
-        regions: Any,
+        regions: xr.DataArray | regionmask.Regions,
         lon: str = "longitude",
         lat: str = "latitude",
         metrics: Sequence[str] = ("rmse", "bias", "correlation", "explained_variance"),
@@ -206,7 +207,7 @@ class RegionScores(Operator):
 
 def _region_labels(
     ds_track: xr.Dataset,
-    regions: Any,
+    regions: xr.DataArray | regionmask.Regions,
     *,
     var_ref: str,
     lon: str,
@@ -217,8 +218,6 @@ def _region_labels(
 
     if type(regions).__module__.startswith("regionmask"):
         import warnings
-
-        import regionmask
 
         if isinstance(regions, regionmask.Regions):
             with warnings.catch_warnings():

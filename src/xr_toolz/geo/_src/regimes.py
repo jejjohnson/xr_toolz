@@ -12,6 +12,9 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 
+KM_PER_DEGREE_AT_EQUATOR = 111.0
+
+
 @lru_cache
 def coastal_regions(
     *,
@@ -24,7 +27,7 @@ def coastal_regions(
     if resolution not in {"110", "50", "10"}:
         raise ValueError("resolution must be one of '110', '50', or '10'.")
 
-    distance_deg = distance_km / 111.0
+    distance_deg = distance_km / KM_PER_DEGREE_AT_EQUATOR
     world = box(-180.0, -90.0, 180.0, 90.0)
     coastal = (
         unary_union(_coarse_land_polygons()).buffer(distance_deg).intersection(world)
