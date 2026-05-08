@@ -344,8 +344,8 @@ class BandpassWavelength(Operator):
         method: str = "lanczos",
         num_taps: int | None = None,
         attenuation_db: float | None = None,
-        lon: str = "longitude",
-        lat: str = "latitude",
+        lon: str = "lon",
+        lat: str = "lat",
     ) -> None:
         self.dim = dim
         self.lambda_min_km = lambda_min_km

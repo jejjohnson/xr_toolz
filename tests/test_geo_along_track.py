@@ -22,8 +22,8 @@ def _track_dataset(n: int = 256) -> xr.Dataset:
         },
         coords={
             "num_lines": x,
-            "longitude": (("num_lines",), -45.0 + 0.1 * x),
-            "latitude": (("num_lines",), np.full(n, 10.0)),
+            "lon": (("num_lines",), -45.0 + 0.1 * x),
+            "lat": (("num_lines",), np.full(n, 10.0)),
         },
     )
 
@@ -119,7 +119,27 @@ def test_bandpass_wavelength_operator_config_round_trip():
         "method": "kaiser",
         "num_taps": 15,
         "attenuation_db": 60.0,
-        "lon": "longitude",
-        "lat": "latitude",
+        "lon": "lon",
+        "lat": "lat",
     }
     assert BandpassWavelength(**cfg).get_config() == cfg
+
+
+def test_bandpass_wavelength_default_lon_lat_lookup():
+    n = 64
+    x = np.arange(n)
+    ds = xr.Dataset(
+        {"sla": (("num_lines",), np.sin(2 * np.pi * x / 16))},
+        coords={
+            "num_lines": x,
+            "lon": (("num_lines",), 0.05 * x),
+            "lat": (("num_lines",), np.zeros(n)),
+        },
+    )
+    out = bandpass_wavelength(
+        ds,
+        dim="num_lines",
+        lambda_min_km=20.0,
+        num_taps=15,
+    )
+    assert out["sla"].shape == ds["sla"].shape

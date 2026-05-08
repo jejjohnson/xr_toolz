@@ -62,8 +62,8 @@ def bandpass_wavelength(
     method: str = "lanczos",
     num_taps: int | None = None,
     attenuation_db: float | None = None,
-    lon: str = "longitude",
-    lat: str = "latitude",
+    lon: str = "lon",
+    lat: str = "lat",
 ) -> xr.Dataset:
     """Filter an along-track dataset using wavelength cutoffs in kilometres.
 
