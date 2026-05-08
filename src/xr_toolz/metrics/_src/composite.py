@@ -21,6 +21,21 @@ def rmse_skill_scores(
 ) -> xr.Dataset:
     """Bundle the canonical RMSE-based skill diagnostics.
 
+    Args:
+        ds_pred: Prediction dataset.
+        ds_ref: Reference dataset.
+        variable: Variable to score.
+        space_dims: Spatial dimensions reduced for the per-time skill.
+        time_dim: Temporal dimension reduced for the per-cell RMSE map.
+
+    Returns:
+        Dataset with ``rmse_t`` over ``time_dim``, ``rmse_xy`` over
+        ``space_dims``, plus scalar ``leaderboard_rmse`` and
+        ``error_stability``.
+
+    Examples:
+        >>> rmse_skill_scores(pred, ref, variable="ssh")
+
     ``error_stability`` uses xarray's default ``std(..., ddof=0)`` to
     match the upstream OSSE report.
     """
@@ -54,7 +69,27 @@ def psd_score_spacetime(
     level: float = 0.5,
     **xrft_kwargs: Any,
 ) -> tuple[xr.Dataset, dict[str, float]]:
-    """Compute a 2-D space-time PSD score and its resolved-scale summary."""
+    """Compute a 2-D space-time PSD score and resolved-scale summary.
+
+    Args:
+        ds_pred: Prediction dataset.
+        ds_ref: Reference dataset.
+        variable: Variable to score.
+        space_dim: Spatial dimension used in the PSD.
+        time_dim: Temporal dimension used in the PSD.
+        avg_dims: Optional dimensions averaged out after the PSD.
+        level: Threshold used by :func:`resolved_scale_2d`.
+        **xrft_kwargs: Extra keyword arguments forwarded to
+            :func:`psd_score`.
+
+    Returns:
+        Tuple ``(score, summary)`` where ``score`` is a Dataset with a
+        ``"score"`` variable on ``(freq_<space_dim>, freq_<time_dim>)``
+        and ``summary`` contains the min/max resolved wavelengths.
+
+    Examples:
+        >>> score, summary = psd_score_spacetime(pred, ref, variable="ssh")
+    """
     freq_space_dim = f"freq_{space_dim}"
     freq_time_dim = f"freq_{time_dim}"
     score = psd_score(

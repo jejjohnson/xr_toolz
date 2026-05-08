@@ -162,7 +162,22 @@ def resolved_scale_2d(
     space_dim: str = "freq_lon",
     time_dim: str = "freq_time",
 ) -> dict[str, float]:
-    """Summarize a 2-D contour crossing as min/max space-time wavelengths."""
+    """Summarize a 2-D contour crossing as min/max space-time wavelengths.
+
+    Args:
+        score: 2-D score field, or a Dataset containing ``"score"``.
+        level: Contour level to summarize.
+        space_dim: Spatial-frequency dimension name.
+        time_dim: Temporal-frequency dimension name.
+
+    Returns:
+        Dictionary with ``lambda_space_min``, ``lambda_time_min``,
+        ``lambda_space_max``, and ``lambda_time_max``. If no contour
+        exists at ``level``, all entries are ``NaN``.
+
+    Examples:
+        >>> resolved_scale_2d(score, level=0.5)
+    """
     score_da = score["score"] if isinstance(score, xr.Dataset) else score
     segments = find_intercept_2D(
         score_da,
