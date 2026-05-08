@@ -153,6 +153,8 @@ def rotary_spectrum(
     Computes the two-sided FFT of the complex velocity ``u + i v``, splits
     positive and negative wavenumbers into counter-clockwise and clockwise
     components, then folds both onto a shared positive ``wavenumber`` axis.
+    The unnormalized FFT is converted to a density with ``dx / n`` scaling so
+    integrating ``psd_cw + psd_ccw`` over wavenumber recovers velocity variance.
 
     Args:
         ds: Dataset containing horizontal velocity components.
@@ -187,7 +189,8 @@ def rotary_spectrum(
     psd_cw.name = "psd_cw"
 
     denom = psd_cw + psd_ccw
-    polarization = ((psd_cw - psd_ccw) / denom).where(denom != 0.0)
+    eps = np.finfo(float).eps
+    polarization = ((psd_cw - psd_ccw) / denom).where(denom > eps)
     polarization.name = "polarization"
     out = xr.Dataset(
         {"psd_ccw": psd_ccw, "psd_cw": psd_cw, "polarization": polarization}

@@ -104,6 +104,7 @@ def test_drop_negative_frequencies_renames_old_conditional_average(da_grid_daily
 
 
 def _rotary_fixture(*, sign: float = 1.0) -> xr.Dataset:
+    """Build one Fourier mode; ``sign=1`` is CCW and ``sign=-1`` is CW."""
     n = 64
     k = 3
     x = np.arange(n, dtype=float)
