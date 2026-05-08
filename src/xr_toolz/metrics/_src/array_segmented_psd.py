@@ -72,7 +72,11 @@ def segment_signal(
     gap_indices: ArrayLike | None = None,
     min_segment_length: int | None = None,
 ) -> NDArray[np.floating]:
-    """Slice a 1-D signal into equal-length, finite, gap-free windows."""
+    """Slice a 1-D signal into equal-length, finite, gap-free windows.
+
+    When ``min_segment_length`` is omitted, chunks shorter than ``npt``
+    are dropped because they cannot produce a complete equal-length window.
+    """
     values = np.asarray(x, dtype=float)
     if values.ndim != 1:
         raise ValueError("segment_signal expects a 1-D signal.")

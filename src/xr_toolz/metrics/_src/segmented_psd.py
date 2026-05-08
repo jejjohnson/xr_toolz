@@ -75,8 +75,6 @@ def _segment_lons(
     out = np.empty(len(bounds), dtype=float)
     for i, (start, stop) in enumerate(bounds):
         out[i] = np.mod(circmean(lon[start:stop], high=360.0, low=0.0), 360.0)
-        if np.isclose(out[i], 360.0):
-            out[i] = 0.0
     return out
 
 

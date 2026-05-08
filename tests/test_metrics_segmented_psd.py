@@ -88,6 +88,10 @@ def _track_dataset(n: int = 192) -> xr.Dataset:
     )
 
 
+def _is_near_zero_meridian(lon: float) -> bool:
+    return min(lon, 360.0 - lon) < 0.1
+
+
 def test_along_track_psd_score_uses_time_gaps_and_scores_between_zero_and_one() -> None:
     ds = _track_dataset()
     out = along_track_psd_score(
@@ -142,7 +146,7 @@ def test_along_track_segment_longitude_uses_circular_mean() -> None:
         spacing_km=7.0,
     )
     segment_lon = float(out["segment_lon"].item())
-    assert min(segment_lon, 360.0 - segment_lon) < 0.1
+    assert _is_near_zero_meridian(segment_lon)
 
 
 def test_resolved_scale_returns_exact_crossing_wavelength() -> None:
