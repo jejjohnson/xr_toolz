@@ -17,11 +17,14 @@ import warnings
 from collections.abc import Sequence
 from typing import Any
 
+import regionmask
+
 from xr_toolz.core import Operator, Signature
 from xr_toolz.geo._src import (
     along_track as _along_track,
     detrend as _detrend,
     masks as _masks,
+    regions as _regions,
     subset as _subset,
     validation as _validation,
 )
@@ -190,6 +193,46 @@ class SubsetBBox(Operator):
             "lat_bnds": list(self.lat_bnds),
             "lon": self.lon,
             "lat": self.lat,
+        }
+
+    def compute_output_signature(self, input_signature: Signature) -> Signature:
+        return input_signature.replace_dims({self.lon: None, self.lat: None})
+
+
+class SubsetToRegion(Operator):
+    def __init__(
+        self,
+        region: str | _regions.RegionSpec | regionmask.Regions,
+        *,
+        lon: str = "lon",
+        lat: str = "lat",
+        validate: bool = True,
+    ):
+        self.region = region
+        self.lon = lon
+        self.lat = lat
+        self.validate = validate
+
+    def _apply(self, ds):
+        return _subset.subset_to_region(
+            ds,
+            self.region,
+            lon=self.lon,
+            lat=self.lat,
+            validate=self.validate,
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        region: str | dict[str, Any]
+        if isinstance(self.region, str):
+            region = self.region
+        else:
+            region = _regions.region_to_dict(self.region)
+        return {
+            "region": region,
+            "lon": self.lon,
+            "lat": self.lat,
+            "validate": self.validate,
         }
 
     def compute_output_signature(self, input_signature: Signature) -> Signature:
@@ -563,6 +606,7 @@ __all__ = [
     "SelectVariables",
     "SubsetBBox",
     "SubsetTime",
+    "SubsetToRegion",
     "ValidateCoords",
     "ValidateLatitude",
     "ValidateLongitude",
