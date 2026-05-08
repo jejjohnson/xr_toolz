@@ -39,9 +39,9 @@ def test_bandpass_wavelength_translates_cutoffs(monkeypatch):
     ds = _track_dataset()
     calls: dict[str, object] = {}
 
-    def fake_fir_filter(ds_in, **kwargs):
+    def fake_fir_filter(ds, **kwargs):
         calls.update(kwargs)
-        return ds_in
+        return ds
 
     monkeypatch.setattr(along_track, "fir_filter", fake_fir_filter)
 

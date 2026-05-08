@@ -113,7 +113,8 @@ def _lowpass_fir_taps(
     if method == "lanczos":
         window = np.sinc(n / m)
     else:
-        assert attenuation_db is not None
+        if attenuation_db is None:
+            raise ValueError("attenuation_db is required for Kaiser FIR taps")
         beta = kaiser_beta(attenuation_db)
         window = windows.kaiser(num_taps, beta, sym=True)
     taps *= window
