@@ -144,7 +144,7 @@ def test_resolve_region_and_unknown_region_error():
     spec = resolve_region("gulf_stream")
 
     assert resolve_region(spec) is spec
-    with pytest.raises(KeyError, match="gulf_stream"):
+    with pytest.raises(KeyError, match="atlantis"):
         resolve_region("atlantis")
 
 
