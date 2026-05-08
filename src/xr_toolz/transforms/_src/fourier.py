@@ -33,6 +33,7 @@ _DEFAULT_PSD_KWARGS: dict[str, Any] = {
     "true_amplitude": True,
     "truncate": True,
 }
+_RADIAL_BINNING_PRECISION = 12
 
 
 def _output_name(da: xr.DataArray, suffix: str, fallback: str = "field") -> str:
@@ -101,7 +102,7 @@ def _gradient_from_hat(
 def _radial_sum(field: xr.DataArray, freq_dims: Sequence[str]) -> xr.DataArray:
     freq_x, freq_y = freq_dims
     kx, ky = xr.broadcast(field[freq_x], field[freq_y])
-    freq_r = np.round(np.hypot(kx.values, ky.values).ravel(), 12)
+    freq_r = np.round(np.hypot(kx.values, ky.values).ravel(), _RADIAL_BINNING_PRECISION)
     stacked = field.stack(_freq_shell=list(freq_dims))
     stacked = stacked.assign_coords(freq_r=("_freq_shell", freq_r))
     out = stacked.groupby("freq_r").sum("_freq_shell").sortby("freq_r")
@@ -337,7 +338,9 @@ def integral_scale(
         Taylor microscale ``λ = sqrt(∫ψ dk / ∫k²ψ dk)``.
     """
     if moment not in (1, 2):
-        raise ValueError(f"moment must be 1 or 2; got {moment}.")
+        raise ValueError(
+            f"moment must be 1 (integral scale) or 2 (Taylor microscale); got {moment}."
+        )
     k = psd[wavenumber_dim]
     numerator = psd.sum(dim=wavenumber_dim)
     denominator = (psd * k**moment).sum(dim=wavenumber_dim)
@@ -380,7 +383,10 @@ def fit_spectral_slope(
     y = np.log(subset.values)
     finite = np.isfinite(x) & np.isfinite(y)
     if finite.sum() < 2:
-        raise ValueError("At least two positive finite spectral samples are required.")
+        raise ValueError(
+            f"At least two positive finite spectral samples required in "
+            f"[{k_min}, {k_max}]; found {finite.sum()}."
+        )
     slope, intercept = np.polyfit(x[finite], y[finite], 1)
     return float(slope), float(intercept)
 

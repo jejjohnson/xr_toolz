@@ -40,7 +40,7 @@ def da_grid_daily() -> xr.DataArray:
 
 
 @pytest.fixture
-def taylor_green_uv() -> tuple[xr.DataArray, xr.DataArray]:
+def taylor_green_vortex_uv() -> tuple[xr.DataArray, xr.DataArray]:
     n = 32
     mode = 2
     x = np.arange(n)
@@ -124,8 +124,8 @@ def test_drop_negative_frequencies_renames_old_conditional_average(da_grid_daily
     assert (reduced["freq_lon"] > 0).all()
 
 
-def test_ke_spectral_flux_conserves_transfer(taylor_green_uv):
-    u, v = taylor_green_uv
+def test_ke_spectral_flux_conserves_transfer(taylor_green_vortex_uv):
+    u, v = taylor_green_vortex_uv
     out = ke_spectral_flux(
         u, v, dim=("x", "y"), window=None, detrend=None, return_2d=True
     )
@@ -134,8 +134,8 @@ def test_ke_spectral_flux_conserves_transfer(taylor_green_uv):
     assert abs(float(out["flux"].isel(freq_r=-1))) < 1e-16
 
 
-def test_ke_spectral_flux_returns_2d(taylor_green_uv):
-    u, v = taylor_green_uv
+def test_ke_spectral_flux_returns_2d(taylor_green_vortex_uv):
+    u, v = taylor_green_vortex_uv
     out = ke_spectral_flux(
         u, v, dim=("x", "y"), window=None, detrend=None, return_2d=True
     )
@@ -144,8 +144,8 @@ def test_ke_spectral_flux_returns_2d(taylor_green_uv):
     assert out["transfer_2d"].sizes["freq_y"] == u.sizes["y"]
 
 
-def test_ke_spectral_flux_avg_dims_matches_manual_average(taylor_green_uv):
-    u, v = taylor_green_uv
+def test_ke_spectral_flux_avg_dims_matches_manual_average(taylor_green_vortex_uv):
+    u, v = taylor_green_vortex_uv
     u_time = xr.concat([u, 2.0 * u], dim="time").assign_coords(time=[0, 1])
     v_time = xr.concat([v, 2.0 * v], dim="time").assign_coords(time=[0, 1])
     full = ke_spectral_flux(u_time, v_time, dim=("x", "y"), window=None, detrend=None)
@@ -160,8 +160,8 @@ def test_ke_spectral_flux_avg_dims_matches_manual_average(taylor_green_uv):
     xr.testing.assert_allclose(averaged["transfer"], full["transfer"].mean("time"))
 
 
-def test_enstrophy_spectral_flux_budget_closes(taylor_green_uv):
-    u, v = taylor_green_uv
+def test_enstrophy_spectral_flux_budget_closes(taylor_green_vortex_uv):
+    u, v = taylor_green_vortex_uv
     out = enstrophy_spectral_flux(u, v, dim=("x", "y"), window=None, detrend=None)
     assert set(out.data_vars) == {"transfer", "flux"}
     assert abs(float(out["transfer"].sum())) < 1e-16
