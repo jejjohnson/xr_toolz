@@ -29,6 +29,7 @@ from xr_toolz.metrics._src.distributional import (
     energy_distance,
     wasserstein_1,
 )
+from xr_toolz.metrics._src.dm import dm_test
 from xr_toolz.metrics._src.forecast import SkillByLeadTime, skill_by_lead_time
 from xr_toolz.metrics._src.leaderboard import rank_methods
 from xr_toolz.metrics._src.masked import MaskedMetric, masked_metric
@@ -77,6 +78,11 @@ from xr_toolz.metrics._src.segmented_psd import (
     SegmentedPSDScore,
     along_track_psd_score,
     psd_score_by_region,
+from xr_toolz.metrics._src.residuals import (
+    BinnedResiduals2D,
+    RegionScores,
+    bin_residuals_2d,
+    scores_by_region,
 )
 from xr_toolz.metrics._src.spectral import (
     BandLimitedRMSE,
@@ -111,6 +117,7 @@ __all__ = [
     "SSIM",
     "BandLimitedRMSE",
     "Bias",
+    "BinnedResiduals2D",
     "CentroidDisplacement",
     "Correlation",
     "DensityInversionFraction",
@@ -127,6 +134,7 @@ __all__ = [
     "PhaseShiftError",
     "R2Score",
     "RankHistogram",
+    "RegionScores",
     "ReliabilityCurve",
     "SegmentedPSDScore",
     "SkillByLeadTime",
@@ -135,11 +143,13 @@ __all__ = [
     "along_track_psd_score",
     "band_limited_rmse",
     "bias",
+    "bin_residuals_2d",
     "centroid_displacement",
     "correlation",
     "crps_ensemble",
     "density_inversion_fraction",
     "divergence_error",
+    "dm_test",
     "energy_distance",
     "ensemble_coverage",
     "evaluate_by_frequency_band",
@@ -168,6 +178,7 @@ __all__ = [
     "segmented_coherence",
     "segmented_csd",
     "segmented_psd",
+    "scores_by_region",
     "skill_by_lead_time",
     "spread_skill_ratio",
     "ssim",
