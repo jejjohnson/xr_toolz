@@ -431,7 +431,7 @@ class WaveletPowerSpectrum(Operator):
     def __init__(
         self,
         var: str,
-        scales,
+        scales: Sequence[float] | xr.DataArray,
         *,
         dim: tuple[str, str] = ("y", "x"),
         x0: float = 50e3,

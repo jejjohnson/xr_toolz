@@ -453,7 +453,7 @@ class WaveletPSDScore(Operator):
     def __init__(
         self,
         variable: str,
-        scales,
+        scales: Sequence[float] | xr.DataArray,
         *,
         dim: tuple[str, str] = ("y", "x"),
         x0: float = 50e3,
