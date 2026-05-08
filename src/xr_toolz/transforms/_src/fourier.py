@@ -221,9 +221,28 @@ def ke_spectral_flux(
 ) -> xr.Dataset:
     """Kinetic-energy spectral flux ``Π(k)``.
 
-    Positive ``flux`` denotes downscale kinetic-energy transfer, computed
-    from the nonlinear advection term and accumulated from high to low
-    radial wavenumber.
+    Args:
+        u: Zonal velocity component with both spatial dimensions in ``dim``.
+        v: Meridional velocity component on the same grid as ``u``.
+        dim: Two spatial dimensions to Fourier transform, for example
+            ``("x", "y")``.
+        window: Optional window forwarded to :func:`xrft.fft`.
+        detrend: Optional detrending forwarded to :func:`xrft.fft`.
+        avg_dims: Optional non-spectral dimensions to average before radial
+            integration, for example ``"time"``.
+        return_2d: If ``True``, include the unbinned two-dimensional transfer
+            field as ``transfer_2d``.
+
+    Returns:
+        Dataset with ``transfer`` as radially summed KE transfer ``T(k)`` and
+        ``flux`` as ``Π(k) = Σ_{k' >= k} T(k')``. ``transfer_2d`` is included
+        when requested.
+
+    Notes:
+        Positive ``flux`` denotes downscale kinetic-energy transfer. The
+        nonlinear advection terms are formed in physical space from
+        Fourier-space gradients, transformed back to spectral space, radially
+        binned by ``freq_r``, and accumulated from high to low wavenumber.
     """
     dims = _validate_spatial_dims(dim)
     freq_dims = [f"freq_{name}" for name in dims]
@@ -256,9 +275,26 @@ def enstrophy_spectral_flux(
 ) -> xr.Dataset:
     """Enstrophy spectral flux ``Π_Z(k)``.
 
-    Positive ``flux`` denotes downscale enstrophy transfer, accumulated
-    from high to low radial wavenumber with the same convention as
-    :func:`ke_spectral_flux`.
+    Args:
+        u: Zonal velocity component with both spatial dimensions in ``dim``.
+        v: Meridional velocity component on the same grid as ``u``.
+        dim: Two spatial dimensions to Fourier transform.
+        window: Optional window forwarded to :func:`xrft.fft`.
+        detrend: Optional detrending forwarded to :func:`xrft.fft`.
+        avg_dims: Optional non-spectral dimensions to average before radial
+            integration.
+        return_2d: If ``True``, include the unbinned two-dimensional transfer
+            field as ``transfer_2d``.
+
+    Returns:
+        Dataset with radially summed enstrophy ``transfer`` and cumulative
+        ``flux``. ``transfer_2d`` is included when requested.
+
+    Notes:
+        Vorticity is computed spectrally as ``ζ̂ = 2πi(k_x v̂ - k_y û)``.
+        Positive ``flux`` denotes downscale enstrophy transfer, accumulated
+        from high to low radial wavenumber with the same convention as
+        :func:`ke_spectral_flux`.
     """
     dims = _validate_spatial_dims(dim)
     freq_dims = [f"freq_{name}" for name in dims]
@@ -288,8 +324,17 @@ def integral_scale(
 ) -> xr.DataArray:
     """Energy-weighted integral scale or Taylor microscale.
 
-    ``moment=1`` returns ``∫ψ dk / ∫kψ dk``. ``moment=2`` returns the
-    Taylor microscale ``λ = sqrt(∫ψ dk / ∫k²ψ dk)``.
+    Args:
+        psd: One-dimensional spectrum with a wavenumber coordinate.
+        wavenumber_dim: Name of the wavenumber dimension.
+        moment: ``1`` for the integral scale, ``2`` for the Taylor microscale.
+
+    Returns:
+        DataArray with ``wavenumber_dim`` removed.
+
+    Notes:
+        ``moment=1`` returns ``∫ψ dk / ∫kψ dk``. ``moment=2`` returns the
+        Taylor microscale ``λ = sqrt(∫ψ dk / ∫k²ψ dk)``.
     """
     if moment not in (1, 2):
         raise ValueError(f"moment must be 1 or 2; got {moment}.")
@@ -310,7 +355,25 @@ def fit_spectral_slope(
     k_min: float,
     k_max: float,
 ) -> tuple[float, float]:
-    """Fit ``log(psd) = slope * log(k) + intercept`` over ``[k_min, k_max]``."""
+    """Fit ``log(psd) = slope * log(k) + intercept`` over ``[k_min, k_max]``.
+
+    Args:
+        psd: One-dimensional positive spectrum.
+        wavenumber_dim: Name of the wavenumber dimension.
+        k_min: Lower inclusive wavenumber bound.
+        k_max: Upper inclusive wavenumber bound.
+
+    Returns:
+        ``(slope, intercept)`` from ``numpy.polyfit`` in log-log space.
+
+    Raises:
+        ValueError: If fewer than two positive finite samples remain in the
+            requested fit window.
+
+    Notes:
+        Use the fitted slope to identify inertial-range power laws such as
+        ``-5/3`` inverse-cascade or ``-3`` enstrophy-cascade scaling.
+    """
     k = psd[wavenumber_dim]
     subset = psd.where((k >= k_min) & (k <= k_max) & (k > 0) & (psd > 0), drop=True)
     x = np.log(subset[wavenumber_dim].values)
@@ -328,7 +391,18 @@ def compensated_spectrum(
     wavenumber_dim: str = "freq_r",
     exponent: float,
 ) -> xr.DataArray:
-    """Return ``psd * k**exponent`` for inertial-range compensation."""
+    """Return ``psd * k**exponent`` for inertial-range compensation.
+
+    Args:
+        psd: Spectrum to compensate.
+        wavenumber_dim: Name of the wavenumber dimension.
+        exponent: Power-law exponent, for example ``5 / 3`` for Kolmogorov
+            scaling.
+
+    Returns:
+        DataArray named ``f"{psd.name}_compensated"`` that is flat where
+        ``psd ∝ k^{-exponent}``.
+    """
     out = psd * psd[wavenumber_dim] ** exponent
     out.name = _output_name(psd, "compensated", fallback="spectrum")
     return out

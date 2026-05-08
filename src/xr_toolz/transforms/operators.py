@@ -139,7 +139,25 @@ class Coherence(Operator):
 
 
 class KESpectralFlux(Operator):
-    """Kinetic-energy spectral flux from ``ds[u]`` and ``ds[v]``."""
+    """Kinetic-energy spectral flux from ``ds[u]`` and ``ds[v]``.
+
+    Args:
+        u: Name of the zonal velocity variable in the input Dataset.
+        v: Name of the meridional velocity variable in the input Dataset.
+        dim: Two spatial dimensions to Fourier transform.
+        window: Optional Fourier window.
+        detrend: Optional Fourier detrending mode.
+        avg_dims: Optional non-spectral dimensions to average.
+        return_2d: If ``True``, include ``transfer_2d`` in the output Dataset.
+
+    Returns:
+        Dataset with ``transfer`` and ``flux`` variables, plus ``transfer_2d``
+        when requested.
+
+    Examples:
+        >>> op = KESpectralFlux("u", "v", ("x", "y"), avg_dims="time")
+        >>> flux_ds = op(ds)
+    """
 
     def __init__(
         self,
@@ -190,7 +208,25 @@ class KESpectralFlux(Operator):
 
 
 class EnstrophySpectralFlux(Operator):
-    """Enstrophy spectral flux from ``ds[u]`` and ``ds[v]``."""
+    """Enstrophy spectral flux from ``ds[u]`` and ``ds[v]``.
+
+    Args:
+        u: Name of the zonal velocity variable in the input Dataset.
+        v: Name of the meridional velocity variable in the input Dataset.
+        dim: Two spatial dimensions to Fourier transform.
+        window: Optional Fourier window.
+        detrend: Optional Fourier detrending mode.
+        avg_dims: Optional non-spectral dimensions to average.
+        return_2d: If ``True``, include ``transfer_2d`` in the output Dataset.
+
+    Returns:
+        Dataset with vorticity-based enstrophy ``transfer`` and ``flux``
+        variables, plus ``transfer_2d`` when requested.
+
+    Examples:
+        >>> op = EnstrophySpectralFlux("u", "v", ("x", "y"))
+        >>> flux_ds = op(ds)
+    """
 
     def __init__(
         self,
