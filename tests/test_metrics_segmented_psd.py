@@ -92,7 +92,7 @@ def _is_near_zero_meridian(lon: float) -> bool:
     return min(lon, 360.0 - lon) < 0.1
 
 
-def test_along_track_psd_score_uses_time_gaps_and_scores_between_zero_and_one() -> None:
+def test_along_track_psd_score_detects_time_gaps() -> None:
     ds = _track_dataset()
     out = along_track_psd_score(
         ds,
@@ -114,6 +114,18 @@ def test_along_track_psd_score_uses_time_gaps_and_scores_between_zero_and_one() 
 
     assert out.sizes["segment"] == 4
     assert no_gap.sizes["segment"] == 5
+
+
+def test_along_track_psd_score_bounds() -> None:
+    ds = _track_dataset()
+    out = along_track_psd_score(
+        ds,
+        var_ref="ssh_ref",
+        var_pred="ssh_pred",
+        npt=64,
+        overlap=0.5,
+        spacing_km=7.0,
+    )
     assert float(out["psd_score"].min()) > 0.0
     assert float(out["psd_score"].max()) < 1.0
     assert {"psd_ref", "psd_pred", "psd_err", "psd_score", "coherence"} <= set(

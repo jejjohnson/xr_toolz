@@ -93,6 +93,7 @@ def segment_signal(
 
     stride = _stride(npt, overlap)
     if gap_indices is None and min_segment_length is None:
+        # Fast path: contiguous input needs no explicit bounds indexing.
         segments = sliding_window_view(values, npt)[::stride]
     else:
         segments = _segments_from_bounds(values, bounds)

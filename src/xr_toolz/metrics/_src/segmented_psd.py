@@ -74,7 +74,7 @@ def _segment_lons(
 ) -> NDArray[np.floating]:
     out = np.empty(len(bounds), dtype=float)
     for i, (start, stop) in enumerate(bounds):
-        out[i] = np.mod(circmean(lon[start:stop], high=360.0, low=0.0), 360.0)
+        out[i] = circmean(lon[start:stop], high=360.0, low=0.0)
     return out
 
 
@@ -160,11 +160,12 @@ def along_track_psd_score(
         segment_lons = np.empty(0, dtype=float)
         segment_lats = np.empty(0, dtype=float)
     else:
-        finite = (
-            np.all(np.isfinite(ref_segments), axis=1)
-            & np.all(np.isfinite(pred_segments), axis=1)
-            & np.all(np.isfinite(lon_segments), axis=1)
-            & np.all(np.isfinite(lat_segments), axis=1)
+        finite = np.all(
+            np.isfinite(ref_segments)
+            & np.isfinite(pred_segments)
+            & np.isfinite(lon_segments)
+            & np.isfinite(lat_segments),
+            axis=1,
         )
         bounds = [bounds[i] for i in np.flatnonzero(finite)]
         ref_segments = ref_segments[finite]
@@ -283,6 +284,7 @@ def psd_score_by_region(
     for i, lat_center in enumerate(lat_out):
         lat_mask = np.abs(lat_values - lat_center) <= delta_lat / 2.0
         for j, lon_center in enumerate(lon_out):
+            # Wrap to [-180, 180] to get shortest circular longitude distance.
             lon_delta = np.abs((lon_values - lon_center + 180.0) % 360.0 - 180.0)
             mask = lat_mask & (lon_delta <= delta_lon / 2.0)
             counts[i, j] = int(np.count_nonzero(mask))
