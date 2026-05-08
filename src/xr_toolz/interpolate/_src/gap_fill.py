@@ -160,12 +160,12 @@ def _fillnan_laplacian_slice(
     iterations = 0
     for step in range(1, max_iter + 1):
         iterations = step
-        old = u.copy() if tol > 0 else None
+        old = u[missing].copy() if tol > 0 else None
         for color in (red, black):
             if color.any():
                 avg = _laplacian_neighbor_average(u, boundary)
                 u[color] += relaxation * (avg[color] - u[color])
-        if old is not None and float(np.max(np.abs(u[missing] - old[missing]))) < tol:
+        if old is not None and float(np.max(np.abs(u[missing] - old))) < tol:
             break
 
     return u, iterations

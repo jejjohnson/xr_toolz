@@ -14,7 +14,7 @@ from xr_toolz.interpolate.operators import FillNaNLaplacian
 
 
 def _harmonic_da() -> xr.DataArray:
-    """Return a linear field, whose second derivatives vanish."""
+    """Return a linear field satisfying ∇²u = 0 exactly."""
     lat = np.linspace(-1.0, 1.0, 21)
     lon = np.linspace(-2.0, 2.0, 25)
     vals = 1.0 + 2.0 * lat[:, None] - 0.5 * lon[None, :]
