@@ -91,6 +91,7 @@ def test_scores_by_region_with_regionmask_regions() -> None:
 
 
 def test_regime_constructors_mask_expected_points() -> None:
+    # Coastal California, open Pacific, equator, and two extra-tropical points.
     lons = xr.DataArray([-122.5, -150.0, 0.0, 0.0, 0.0], dims="point")
     lats = xr.DataArray([37.0, 0.0, 0.0, 6.0, -6.0], dims="point")
 

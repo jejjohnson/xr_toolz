@@ -90,14 +90,23 @@ def eddy_regions(
 def _coarse_land_polygons() -> list[BaseGeometry]:
     """Approximate major land masses for offline coastal masks."""
     return [
+        # North America
         box(-168.0, 7.0, -52.0, 72.0),
+        # South America
         box(-82.0, -56.0, -34.0, 13.0),
+        # Africa
         box(-18.0, -35.0, 52.0, 38.0),
+        # Europe and Asia
         box(-11.0, 35.0, 180.0, 72.0),
+        # Southeast Asia and Indonesia
         box(95.0, -11.0, 154.0, 8.0),
+        # Australia
         box(112.0, -45.0, 154.0, -10.0),
+        # New Zealand
         box(166.0, -48.0, 179.0, -34.0),
+        # Arctic high-latitude land/ice
         box(-180.0, 60.0, 180.0, 83.0),
+        # Antarctica
         box(-180.0, -90.0, 180.0, -60.0),
     ]
 

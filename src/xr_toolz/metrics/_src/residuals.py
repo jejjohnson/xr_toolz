@@ -251,9 +251,9 @@ def _score_region(ref: np.ndarray, pred: np.ndarray, metric: str) -> float:
     if metric == "mae":
         return float(np.mean(np.abs(residual)))
     if metric == "correlation":
-        std_ref = np.std(ref)
-        std_pred = np.std(pred)
-        if ref.size < 2 or np.isclose(std_ref, 0.0) or np.isclose(std_pred, 0.0):
+        var_ref = np.var(ref)
+        var_pred = np.var(pred)
+        if ref.size < 2 or np.isclose(var_ref, 0.0) or np.isclose(var_pred, 0.0):
             return np.nan
         return float(np.corrcoef(pred, ref)[0, 1])
     if metric == "r2":
