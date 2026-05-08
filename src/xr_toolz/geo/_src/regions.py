@@ -9,6 +9,7 @@ from typing import Any
 
 import regionmask
 from shapely.geometry import MultiPolygon, box, mapping, shape
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 
@@ -137,7 +138,7 @@ REGIONS: dict[str, RegionSpec] = {
     ),
     "ibi": custom_region(
         id="ibi",
-        display_name="IBI",
+        display_name="Iberia-Biscay-Ireland (IBI)",
         lat_min=26.17,
         lat_max=56.08,
         lon_min=-19.08,
@@ -213,16 +214,27 @@ def _load_geojson(data: dict[str, Any] | str | Path) -> dict[str, Any]:
     if isinstance(data, dict):
         return data
     if isinstance(data, Path):
-        with data.open() as f:
-            return json.load(f)
+        return _load_json_file(data)
     text = str(data)
     if text.lstrip().startswith(("{", "[")):
-        return json.loads(text)
-    with Path(text).open() as f:
-        return json.load(f)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Could not parse GeoJSON string.") from exc
+    return _load_json_file(Path(text))
 
 
-def _geometry_from_geojson(data: dict[str, Any]):
+def _load_json_file(path: Path) -> dict[str, Any]:
+    try:
+        with path.open() as f:
+            return json.load(f)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"GeoJSON file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Could not parse GeoJSON file: {path}") from exc
+
+
+def _geometry_from_geojson(data: dict[str, Any]) -> BaseGeometry:
     kind = data.get("type")
     if kind == "Feature":
         return shape(data["geometry"])
