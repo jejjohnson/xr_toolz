@@ -181,6 +181,9 @@ class RenameToCFStandardNames(Operator):
     def get_config(self) -> dict[str, Any]:
         return {"include_coords": self.include_coords}
 
+    def compute_output_signature(self, input_signature: Signature) -> Signature:
+        return input_signature
+
 
 class RenameFromCFStandardNames(Operator):
     """Wrap :func:`xr_toolz.geo.rename_from_cf_standard_names`.
@@ -212,6 +215,9 @@ class RenameFromCFStandardNames(Operator):
 
     def get_config(self) -> dict[str, Any]:
         return {"fallback": self.fallback, "include_coords": self.include_coords}
+
+    def compute_output_signature(self, input_signature: Signature) -> Signature:
+        return input_signature
 
 
 # ---------- subset ---------------------------------------------------------
