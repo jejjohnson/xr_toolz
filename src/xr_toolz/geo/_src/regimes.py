@@ -8,6 +8,7 @@ import numpy as np
 import regionmask
 import xarray as xr
 from shapely.geometry import MultiPolygon, box
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 
@@ -86,7 +87,7 @@ def eddy_regions(
     return mask
 
 
-def _coarse_land_polygons():
+def _coarse_land_polygons() -> list[BaseGeometry]:
     return [
         box(-168.0, 7.0, -52.0, 72.0),
         box(-82.0, -56.0, -34.0, 13.0),

@@ -256,10 +256,16 @@ def _score_region(ref: np.ndarray, pred: np.ndarray, metric: str) -> float:
         return float(np.corrcoef(pred, ref)[0, 1])
     if metric == "r2":
         denom = np.sum((ref - np.mean(ref)) ** 2)
-        return np.nan if denom == 0.0 else float(1.0 - np.sum(residual**2) / denom)
+        return (
+            np.nan
+            if np.isclose(denom, 0.0)
+            else float(1.0 - np.sum(residual**2) / denom)
+        )
     if metric == "explained_variance":
         denom = np.var(ref)
-        return np.nan if denom == 0.0 else float(1.0 - np.var(residual) / denom)
+        return (
+            np.nan if np.isclose(denom, 0.0) else float(1.0 - np.var(residual) / denom)
+        )
     if metric == "count":
         return float(ref.size)
     raise ValueError(f"Unsupported region score metric {metric!r}.")
