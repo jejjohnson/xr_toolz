@@ -43,7 +43,11 @@ def _gap_indices(
 def _median_dx_km(lon: NDArray[np.floating], lat: NDArray[np.floating]) -> float:
     lon_rad = np.deg2rad(lon)
     lat_rad = np.deg2rad(lat)
-    dlon = np.diff(lon_rad)
+    # Wrap to (-π, π] so dateline crossings (e.g. 179° → -179°) report
+    # the shortest arc rather than the raw ~358° jump. Haversine's
+    # sin²(Δλ/2) happens to be 2π-periodic so this is defensive, but
+    # being explicit avoids future formula tweaks silently breaking it.
+    dlon = (np.diff(lon_rad) + np.pi) % (2.0 * np.pi) - np.pi
     dlat = np.diff(lat_rad)
     a = np.sin(dlat / 2.0) ** 2 + np.cos(lat_rad[:-1]) * np.cos(lat_rad[1:]) * (
         np.sin(dlon / 2.0) ** 2
@@ -265,7 +269,10 @@ def psd_score_by_region(
         np.asarray(ds_segments["segment_lon"].values, dtype=float), 360.0
     )
     lat_out = np.asarray(lat_centers, dtype=float)
-    lon_out = np.asarray(lon_centers, dtype=float)
+    # Normalize to [0, 360) so callers can pass either [-180, 180] or
+    # [0, 360] convention; the circular-distance computation downstream
+    # assumes a common modulus.
+    lon_out = np.mod(np.asarray(lon_centers, dtype=float), 360.0)
     wavenumber = np.asarray(ds_segments["wavenumber"].values, dtype=float)
 
     data_names = [
@@ -293,13 +300,6 @@ def psd_score_by_region(
             for name in data_names:
                 out[name][i, j] = np.nanmean(ds_segments[name].values[mask], axis=0)
 
-    with np.errstate(divide="ignore", invalid="ignore"):
-        score = np.where(
-            np.isfinite(out["psd_ref"]) & (out["psd_ref"] > 0.0),
-            1.0 - out["psd_err"] / out["psd_ref"],
-            np.nan,
-        )
-
     coords = {
         "lat": ("lat", lat_out, {"units": "degrees_north"}),
         "lon": ("lon", lon_out, {"units": "degrees_east"}),
@@ -315,7 +315,16 @@ def psd_score_by_region(
     data_vars: dict[str, Any] = {
         name: (("lat", "lon", "wavenumber"), values) for name, values in out.items()
     }
-    data_vars["psd_score"] = (("lat", "lon", "wavenumber"), score)
+    # psd_score is only well-defined when both reference and error PSDs
+    # are present; otherwise emit NaN rather than raising on a missing key.
+    if "psd_ref" in out and "psd_err" in out:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            score = np.where(
+                np.isfinite(out["psd_ref"]) & (out["psd_ref"] > 0.0),
+                1.0 - out["psd_err"] / out["psd_ref"],
+                np.nan,
+            )
+        data_vars["psd_score"] = (("lat", "lon", "wavenumber"), score)
     data_vars["n_segments"] = (("lat", "lon"), counts)
     return xr.Dataset(data_vars=data_vars, coords=coords)
 

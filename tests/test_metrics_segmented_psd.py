@@ -200,6 +200,57 @@ def test_psd_score_by_region_applies_min_segments_threshold() -> None:
     assert np.all(np.isnan(out["psd_score"].sel(lat=0.0, lon=30.0)))
 
 
+def test_psd_score_by_region_accepts_lon_centers_in_minus180_180() -> None:
+    """Callers can pass ``lon_centers`` in either [-180, 180] or
+    [0, 360] convention — they are normalized to [0, 360) so the
+    circular-distance computation is correct either way."""
+    ds_segments = xr.Dataset(
+        {
+            "psd_ref": (("segment", "wavenumber"), np.ones((2, 2))),
+            "psd_pred": (("segment", "wavenumber"), np.ones((2, 2)) * 0.8),
+            "psd_err": (("segment", "wavenumber"), np.ones((2, 2)) * 0.25),
+        },
+        coords={
+            "segment_lon": ("segment", [358.0, 2.0]),
+            "segment_lat": ("segment", [0.0, 0.0]),
+            "wavenumber": ("wavenumber", [0.0, 0.1]),
+        },
+    )
+    out = psd_score_by_region(
+        ds_segments,
+        lat_centers=[0.0],
+        lon_centers=[-1.0],
+        delta_lat=2.0,
+        delta_lon=10.0,
+        min_segments=2,
+    )
+    # Both segments fall within ±5° of the prime meridian once the
+    # negative center is normalized to 359°.
+    assert np.all(np.isfinite(out["psd_score"].sel(lat=0.0)))
+
+
+def test_psd_score_by_region_omits_psd_score_when_inputs_missing() -> None:
+    """``psd_score`` is only well-defined when both ``psd_ref`` and
+    ``psd_err`` are present; otherwise the function must not raise."""
+    ds_segments = xr.Dataset(
+        {"psd_pred": (("segment", "wavenumber"), np.ones((2, 2)))},
+        coords={
+            "segment_lon": ("segment", [0.0, 0.0]),
+            "segment_lat": ("segment", [0.0, 0.0]),
+            "wavenumber": ("wavenumber", [0.0, 0.1]),
+        },
+    )
+    out = psd_score_by_region(
+        ds_segments,
+        lat_centers=[0.0],
+        lon_centers=[0.0],
+        delta_lat=2.0,
+        delta_lon=2.0,
+        min_segments=1,
+    )
+    assert "psd_score" not in out.data_vars
+
+
 def test_segmented_psd_score_operator_config_round_trips() -> None:
     op = SegmentedPSDScore(
         var_ref="ssh_ref",

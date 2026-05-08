@@ -8,7 +8,11 @@ Layer-0 functions: :func:`psd_error`, :func:`psd_score`,
 Layer-1 operators: :class:`PSDScore`, :class:`FrequencyBandSkill`,
 :class:`BandLimitedRMSE`, :class:`SegmentedPSDScore`.
 
-Implementation lives in :mod:`xr_toolz.metrics._src.spectral`.
+Implementation lives in :mod:`xr_toolz.metrics._src.spectral` for the
+core PSD primitives, with the gap-tolerant segmented along-track
+helpers (:func:`along_track_psd_score`, :func:`psd_score_by_region`,
+:class:`SegmentedPSDScore`) defined in
+:mod:`xr_toolz.metrics._src.segmented_psd`.
 """
 
 from xr_toolz.metrics._src.segmented_psd import (
