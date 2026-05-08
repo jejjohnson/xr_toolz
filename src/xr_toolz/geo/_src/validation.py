@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -142,22 +143,42 @@ def decode_cf_time(
     return xr.decode_cf(ds)
 
 
-def validate_time(ds: xr.Dataset, *, time: str = "time") -> xr.Dataset:
+def validate_time(
+    ds: xr.Dataset,
+    *,
+    time: str = "time",
+    unit: str | None = None,
+    origin: str = "unix",
+) -> xr.Dataset:
     """Coerce the time coordinate to ``pandas`` datetime.
 
-    Passes the raw coordinate values through :func:`pandas.to_datetime`,
-    which handles string, float-seconds, and already-``datetime64``
-    inputs uniformly.
+    Strings and ``datetime64`` arrays pass through unchanged. For
+    numeric inputs, ``unit`` and ``origin`` must be supplied so the
+    values can be interpreted unambiguously — otherwise
+    :func:`pandas.to_datetime` defaults to nanoseconds since the Unix
+    epoch, which silently mangles common "seconds since 1970-01-01"
+    encodings.
 
     Args:
         ds: Input dataset.
         time: Name of the time coordinate.
+        unit: Forwarded to :func:`pandas.to_datetime`. For numeric
+            coords, set this to e.g. ``"s"`` / ``"ms"`` / ``"D"``.
+        origin: Forwarded to :func:`pandas.to_datetime`. Defaults to
+            the Unix epoch.
 
     Returns:
-        Dataset with the time coordinate cast to ``datetime64[ns]``.
+        Dataset with the time coordinate cast to ``datetime64[ns]``,
+        preserving the original dims and attrs.
     """
     ds = ds.copy()
-    ds[time] = pd.to_datetime(ds[time].values)
+    coord = ds[time]
+    converted = pd.to_datetime(coord.values, unit=unit, origin=origin)
+    ds[time] = xr.DataArray(
+        np.asarray(converted, dtype="datetime64[ns]"),
+        dims=coord.dims,
+        attrs=dict(coord.attrs),
+    )
     return ds
 
 
@@ -178,7 +199,10 @@ def check_dataset_coords(
 
     Args:
         ds: Dataset to check.
-        require: Names that must appear in ``ds.variables``.
+        require: Names that must appear in ``ds.coords``. Data
+            variables with these names do not satisfy the requirement —
+            downstream coord-based ops like ``.sel`` need an actual
+            coordinate.
         validate: When ``True``, run a round-trip through the
             appropriate validator for ``"lon"``, ``"lat"``, and
             ``"time"`` and assert the result is identical to the
@@ -186,10 +210,10 @@ def check_dataset_coords(
 
     Raises:
         AssertionError: If any name in ``require`` is missing from
-            ``ds.variables``, or if a round-trip validator produces a
+            ``ds.coords``, or if a round-trip validator produces a
             different result (``validate=True``).
     """
-    missing = set(require) - set(ds.variables)
+    missing = set(require) - set(ds.coords)
     if missing:
         raise AssertionError(f"Dataset missing required coords: {sorted(missing)}")
     if validate:

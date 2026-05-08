@@ -206,6 +206,32 @@ def test_check_dataset_coords_sorted_missing_in_message():
     assert "time" in str(exc_info.value)
 
 
+def test_check_dataset_coords_rejects_data_var_with_required_name():
+    """A data variable named ``time`` does not satisfy the schema —
+    ``.sel(time=...)`` and other coord-based ops still need the name to
+    be a coordinate."""
+    ds = xr.Dataset({"time": ("row", [0, 1, 2])})
+    with pytest.raises(AssertionError, match="time"):
+        check_dataset_coords(ds, require=("time",))
+
+
+def test_validate_time_unit_seconds_since_epoch():
+    """Numeric times need an explicit ``unit`` — without it,
+    pandas would interpret 1.0 as one nanosecond past the epoch."""
+    ds = xr.Dataset({"ssh": ("time", [1.0])}, coords={"time": [1.0]})
+    out = validate_time(ds, unit="s")
+    assert out["time"].values[0] == np.datetime64("1970-01-01T00:00:01")
+
+
+def test_validate_time_preserves_attrs():
+    time = pd.date_range("2000-01-01", periods=2)
+    ds = xr.Dataset({"ssh": ("time", [1.0, 2.0])}, coords={"time": time})
+    ds["time"].attrs["standard_name"] = "time"
+    ds["time"].attrs["axis"] = "T"
+    out = validate_time(ds)
+    assert out["time"].attrs == {"standard_name": "time", "axis": "T"}
+
+
 # ---------- subset -----------------------------------------------------------
 
 

@@ -228,7 +228,7 @@ def test_validate_time_operator_coerces_string():
 
 def test_validate_time_operator_get_config():
     op = ValidateTime(time="t")
-    assert op.get_config() == {"time": "t"}
+    assert op.get_config() == {"time": "t", "unit": None, "origin": "unix"}
 
 
 def test_validate_time_operator_repr():

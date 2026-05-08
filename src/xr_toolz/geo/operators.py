@@ -106,14 +106,24 @@ class DecodeCFTime(Operator):
 class ValidateTime(Operator):
     """Wrap :func:`xr_toolz.geo.validate_time`."""
 
-    def __init__(self, *, time: str = "time"):
+    def __init__(
+        self,
+        *,
+        time: str = "time",
+        unit: str | None = None,
+        origin: str = "unix",
+    ):
         self.time = time
+        self.unit = unit
+        self.origin = origin
 
     def _apply(self, ds):
-        return _validation.validate_time(ds, time=self.time)
+        return _validation.validate_time(
+            ds, time=self.time, unit=self.unit, origin=self.origin
+        )
 
     def get_config(self) -> dict[str, Any]:
-        return {"time": self.time}
+        return {"time": self.time, "unit": self.unit, "origin": self.origin}
 
 
 class RenameCoords(Operator):
