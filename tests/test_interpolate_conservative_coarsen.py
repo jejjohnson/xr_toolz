@@ -152,7 +152,7 @@ def test_conservative_coarsen_rejects_misaligned_lat_chunks() -> None:
         np.arange(8, dtype=float), dims=("lat",), coords={"lat": np.arange(8)}
     ).chunk({"lat": 3})
 
-    with pytest.raises(ValueError, match="chunks along 'lat'"):
+    with pytest.raises(ValueError, match=r"chunks along 'lat'.*\(3, 3, 2\)"):
         coarsen_conservative(da, {"lat": 2})
 
 

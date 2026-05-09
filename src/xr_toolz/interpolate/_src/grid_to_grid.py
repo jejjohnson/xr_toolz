@@ -46,7 +46,8 @@ def coarsen_conservative(
     Args:
         ds: Dataset or data array to coarsen.
         factor: Mapping from dimension name to integer coarsen factor.
-        lat: Latitude dimension name. Values must be in degrees.
+        lat: Latitude dimension name. Values are expected to be cell centers in
+            degrees within the usual [-90, 90] latitude range.
         boundary: Boundary mode forwarded to :meth:`xarray.DataArray.coarsen`.
 
     Returns:
@@ -109,7 +110,8 @@ def _validate_coarsen_factor(factor: Mapping[str, int]) -> dict[str, int]:
     for dim, value in factor_dict.items():
         if not isinstance(value, int) or value < 1:
             raise ValueError(
-                f"coarsen factor for {dim!r} must be a positive int, got {value!r}."
+                f"coarsen factor for {dim!r} must be a positive integer "
+                f"(>= 1), got {value!r}."
             )
     return factor_dict
 
