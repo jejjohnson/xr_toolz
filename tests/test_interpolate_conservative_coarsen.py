@@ -125,6 +125,21 @@ def test_conservative_coarsen_operator_round_trips_config() -> None:
     assert round_tripped.get_config() == cfg
 
 
+def test_conservative_coarsen_operator_uses_custom_lat_name() -> None:
+    latitude = np.array([50.0, 55.0, 60.0, 65.0])
+    da = xr.DataArray(
+        1.0 / np.cos(np.deg2rad(latitude)),
+        dims=("latitude",),
+        coords={"latitude": latitude},
+    )
+    op = Coarsen(factor={"latitude": 4}, conservative=True, lat="latitude")
+
+    xr.testing.assert_allclose(
+        op(da),
+        coarsen_conservative(da, {"latitude": 4}, lat="latitude"),
+    )
+
+
 def test_conservative_coarsen_operator_rejects_non_mean_method() -> None:
     with pytest.raises(ValueError, match="method='mean'"):
         Coarsen(factor={"lat": 2}, method="max", conservative=True)

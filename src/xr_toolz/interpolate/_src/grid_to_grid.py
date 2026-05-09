@@ -81,7 +81,7 @@ def _coarsen_conservative_dataarray(
     _validate_lat_chunks(da, factor[lat], lat=lat)
 
     cos_lat = np.cos(np.deg2rad(da[lat]))
-    weights = xr.DataArray(cos_lat.data, dims=(lat,), coords={lat: da[lat]})
+    weights = cos_lat
     mask = xr.apply_ufunc(np.isfinite, da, dask="allowed")
     weighted = weights * mask
     numerator = (
@@ -89,7 +89,7 @@ def _coarsen_conservative_dataarray(
     )
     denominator = weighted.coarsen(dim=factor, boundary=boundary).sum()
     valid = denominator > 0
-    return numerator.where(valid) / denominator.where(valid)
+    return (numerator / denominator).where(valid)
 
 
 def _validate_coarsen_factor(factor: Mapping[str, int]) -> dict[str, int]:
