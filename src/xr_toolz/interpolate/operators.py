@@ -21,6 +21,7 @@ from xr_toolz.interpolate._src import (
     downscale as _downscale,
     gap_fill as _gap_fill,
     grid_to_grid as _grid_to_grid,
+    mask_ops as _mask_ops,
     points_to_grid as _points_to_grid,
     resample as _resample,
     smooth as _smooth,
@@ -149,6 +150,145 @@ class FillNaNRBF(Operator):
         return {
             "kernel": self.kernel,
             "neighbors": self.neighbors,
+            "lon": self.lon,
+            "lat": self.lat,
+        }
+
+
+# ---------- mask cleanup ----------------------------------------------------
+
+
+def _footprint_config(footprint: _mask_ops.Footprint | None) -> Any:
+    if isinstance(footprint, np.ndarray):
+        return f"<ndarray:{tuple(footprint.shape)}>"
+    return footprint
+
+
+class MaskRemoveSmallHoles(Operator):
+    """Wrap :func:`xr_toolz.interpolate.remove_small_holes_2d`."""
+
+    def __init__(self, *, area: int = 4, lon: str = "lon", lat: str = "lat"):
+        self.area = area
+        self.lon = lon
+        self.lat = lat
+
+    def _apply(self, mask):
+        return _mask_ops.remove_small_holes_2d(
+            mask, area=self.area, lon=self.lon, lat=self.lat
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {"area": self.area, "lon": self.lon, "lat": self.lat}
+
+
+class MaskRemoveSmallObjects(Operator):
+    """Wrap :func:`xr_toolz.interpolate.remove_small_objects_2d`."""
+
+    def __init__(self, *, area: int = 4, lon: str = "lon", lat: str = "lat"):
+        self.area = area
+        self.lon = lon
+        self.lat = lat
+
+    def _apply(self, mask):
+        return _mask_ops.remove_small_objects_2d(
+            mask, area=self.area, lon=self.lon, lat=self.lat
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {"area": self.area, "lon": self.lon, "lat": self.lat}
+
+
+class MaskBinaryOpening(Operator):
+    """Wrap :func:`xr_toolz.interpolate.binary_opening_2d`."""
+
+    def __init__(
+        self,
+        *,
+        footprint: _mask_ops.Footprint = 1,
+        lon: str = "lon",
+        lat: str = "lat",
+    ):
+        self.footprint = footprint
+        self.lon = lon
+        self.lat = lat
+
+    def _apply(self, mask):
+        return _mask_ops.binary_opening_2d(
+            mask, footprint=self.footprint, lon=self.lon, lat=self.lat
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "footprint": _footprint_config(self.footprint),
+            "lon": self.lon,
+            "lat": self.lat,
+        }
+
+
+class MaskBinaryClosing(Operator):
+    """Wrap :func:`xr_toolz.interpolate.binary_closing_2d`."""
+
+    def __init__(
+        self,
+        *,
+        footprint: _mask_ops.Footprint = 1,
+        lon: str = "lon",
+        lat: str = "lat",
+    ):
+        self.footprint = footprint
+        self.lon = lon
+        self.lat = lat
+
+    def _apply(self, mask):
+        return _mask_ops.binary_closing_2d(
+            mask, footprint=self.footprint, lon=self.lon, lat=self.lat
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "footprint": _footprint_config(self.footprint),
+            "lon": self.lon,
+            "lat": self.lat,
+        }
+
+
+class CleanMask(Operator):
+    """Convenience operator wrapping :func:`xr_toolz.interpolate.clean_mask`."""
+
+    def __init__(
+        self,
+        *,
+        fill_holes_area: int | None = 4,
+        drop_objects_area: int | None = None,
+        closing_footprint: _mask_ops.Footprint | None = None,
+        opening_footprint: _mask_ops.Footprint | None = None,
+        lon: str = "lon",
+        lat: str = "lat",
+    ):
+        self.fill_holes_area = fill_holes_area
+        self.drop_objects_area = drop_objects_area
+        self.closing_footprint = closing_footprint
+        self.opening_footprint = opening_footprint
+        self.lon = lon
+        self.lat = lat
+
+    def _apply(self, mask):
+        return _mask_ops.clean_mask(
+            mask,
+            fill_holes_area=self.fill_holes_area,
+            drop_objects_area=self.drop_objects_area,
+            closing_footprint=self.closing_footprint,
+            opening_footprint=self.opening_footprint,
+            lon=self.lon,
+            lat=self.lat,
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "fill_holes_area": self.fill_holes_area,
+            "drop_objects_area": self.drop_objects_area,
+            "closing_footprint": _footprint_config(self.closing_footprint),
+            "opening_footprint": _footprint_config(self.opening_footprint),
             "lon": self.lon,
             "lat": self.lat,
         }
@@ -716,6 +856,7 @@ Upscale = _downscale.Upscale
 
 __all__ = [
     "Bin2D",
+    "CleanMask",
     "Coarsen",
     "Downscale",
     "FillNaNLaplacian",
@@ -726,6 +867,10 @@ __all__ = [
     "GaussianSmooth",
     "Histogram2D",
     "LowpassFilter",
+    "MaskBinaryClosing",
+    "MaskBinaryOpening",
+    "MaskRemoveSmallHoles",
+    "MaskRemoveSmallObjects",
     "MovingAverage",
     "PointsToGrid",
     "Refine",

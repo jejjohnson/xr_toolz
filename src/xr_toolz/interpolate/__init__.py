@@ -5,6 +5,7 @@ source/target structure under :mod:`._src`:
 
 - :mod:`._src.gap_fill` — ``fillnan_spatial``, ``fillnan_temporal``,
   ``fillnan_laplacian``, ``fillnan_rbf``
+- :mod:`._src.mask_ops` — ``clean_mask`` and binary mask cleanup helpers
 - :mod:`._src.grid_to_grid` — ``coarsen``, ``refine``
 - :mod:`._src.resample` — ``resample_time``
 - :mod:`._src.binning` — ``Grid``, ``Period``, ``SpaceTimeGrid``, ``bin_2d``,
@@ -36,6 +37,13 @@ from xr_toolz.interpolate._src.gap_fill import (
     fillnan_temporal,
 )
 from xr_toolz.interpolate._src.grid_to_grid import coarsen, refine, regrid_like
+from xr_toolz.interpolate._src.mask_ops import (
+    binary_closing_2d,
+    binary_opening_2d,
+    clean_mask,
+    remove_small_holes_2d,
+    remove_small_objects_2d,
+)
 from xr_toolz.interpolate._src.points_to_grid import points_to_grid
 from xr_toolz.interpolate._src.resample import resample_time
 from xr_toolz.interpolate._src.smooth import (
@@ -44,13 +52,28 @@ from xr_toolz.interpolate._src.smooth import (
     lowpass_filter,
     moving_average,
 )
+from xr_toolz.interpolate.operators import (
+    CleanMask,
+    MaskBinaryClosing,
+    MaskBinaryOpening,
+    MaskRemoveSmallHoles,
+    MaskRemoveSmallObjects,
+)
 
 
 __all__ = [
+    "CleanMask",
     "Grid",
+    "MaskBinaryClosing",
+    "MaskBinaryOpening",
+    "MaskRemoveSmallHoles",
+    "MaskRemoveSmallObjects",
     "Period",
     "SpaceTimeGrid",
     "bin_2d",
+    "binary_closing_2d",
+    "binary_opening_2d",
+    "clean_mask",
     "coarsen",
     "fillnan_laplacian",
     "fillnan_rbf",
@@ -65,6 +88,8 @@ __all__ = [
     "refine",
     "regrid_like",
     "remap_axis",
+    "remove_small_holes_2d",
+    "remove_small_objects_2d",
     "resample_time",
     "to_phase",
 ]
