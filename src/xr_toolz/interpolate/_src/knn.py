@@ -241,6 +241,8 @@ def fillnan_idw(
     degrees and converted to radians internally; ``max_distance`` is in
     radians. For ``metric="euclidean"``, distances are measured in array-index
     space (column/row positions), not coordinate-value space.
+    This differs from :func:`idw_to_points` and :func:`idw_to_grid`, whose
+    Euclidean mode uses source and target lon/lat coordinate values directly.
 
     Args:
         da: Input DataArray with ``lat`` and ``lon`` dimensions.

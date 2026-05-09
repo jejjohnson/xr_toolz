@@ -127,7 +127,7 @@ def test_fillnan_idw_fills_smooth_hole_with_bounded_rmse() -> None:
     assert rmse < 0.2
 
 
-def test_fillnan_idw_is_comparable_to_griddata_linear_on_synthetic_gap() -> None:
+def test_fillnan_idw_rmse_within_factor_of_griddata_linear() -> None:
     lon = np.linspace(-2.0, 2.0, 31)
     lat = np.linspace(-1.5, 1.5, 25)
     lon_grid, lat_grid = np.meshgrid(lon, lat, indexing="xy")
