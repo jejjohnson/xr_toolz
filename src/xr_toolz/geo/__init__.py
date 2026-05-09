@@ -70,10 +70,23 @@ from xr_toolz.geo._src.validation import (
     validate_longitude,
     validate_time,
 )
+from xr_toolz.geo._src.wavelet import (
+    cwt2,
+    morlet2_ft,
+    wvlt_cross_spectrum,
+    wvlt_power_spectrum,
+)
+from xr_toolz.geo._src.wavelet_utils import (
+    build_coi_mask,
+    geometric_scales,
+    scale_to_wavenumber,
+    wavenumber_to_scale,
+)
 from xr_toolz.geo.operators import (
     BandpassWavelength,
     RenameFromCFStandardNames,
     RenameToCFStandardNames,
+    WaveletPowerSpectrum,
 )
 
 
@@ -143,6 +156,7 @@ __all__ = [
     "BandpassWavelength",
     "RenameFromCFStandardNames",
     "RenameToCFStandardNames",
+    "WaveletPowerSpectrum",
     "add_climatology",
     "add_country_mask",
     "add_land_mask",
@@ -152,6 +166,7 @@ __all__ = [
     "bandpass_wavelength",
     "block_maxima",
     "block_minima",
+    "build_coi_mask",
     "calc_latlon",
     "calculate_anomaly",
     "calculate_anomaly_smoothed",
@@ -159,10 +174,13 @@ __all__ = [
     "calculate_climatology_season",
     "calculate_climatology_smoothed",
     "check_dataset_coords",
+    "cwt2",
     "decode_cf_time",
+    "geometric_scales",
     "get_crs",
     "lonlat_to_xy",
     "median_dx_km",
+    "morlet2_ft",
     "pot_exceedances",
     "pot_threshold",
     "pp_counts",
@@ -174,6 +192,7 @@ __all__ = [
     "rename_to_cf_standard_names",
     "rename_variables",
     "reproject",
+    "scale_to_wavenumber",
     "select_variables",
     "subset_bbox",
     "subset_time",
@@ -181,5 +200,8 @@ __all__ = [
     "validate_latitude",
     "validate_longitude",
     "validate_time",
+    "wavenumber_to_scale",
+    "wvlt_cross_spectrum",
+    "wvlt_power_spectrum",
     "xy_to_lonlat",
 ]
