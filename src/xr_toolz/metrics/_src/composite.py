@@ -39,15 +39,23 @@ def rmse_skill_scores(
     ``error_stability`` uses xarray's default ``std(..., ddof=0)`` to
     match the upstream OSSE report.
     """
-    rmse_t = nrmse(ds_pred, ds_ref, variable, dims=space_dims).rename("rmse_t")
+    space_dims_t = tuple(space_dims)
+    if time_dim in space_dims_t:
+        raise ValueError(
+            f"time_dim={time_dim!r} must not appear in space_dims={space_dims_t!r};"
+            " duplicate core dims are rejected by xr.apply_ufunc."
+        )
+    rmse_t = nrmse(ds_pred, ds_ref, variable, dims=space_dims_t).rename("rmse_t")
     rmse_xy = rmse(ds_pred, ds_ref, variable, dims=time_dim).rename("rmse_xy")
     leaderboard_rmse = nrmse(
         ds_pred,
         ds_ref,
         variable,
-        dims=(time_dim, *space_dims),
+        dims=(time_dim, *space_dims_t),
     ).rename("leaderboard_rmse")
-    error_stability = rmse_t.std(dim=time_dim).rename("error_stability")
+    # Pin ddof=0 explicitly to match the OSSE-report convention; relying
+    # on xarray's default could shift quietly if it ever changes.
+    error_stability = rmse_t.std(dim=time_dim, ddof=0).rename("error_stability")
     return xr.Dataset(
         {
             "rmse_t": rmse_t,
@@ -90,6 +98,15 @@ def psd_score_spacetime(
     Examples:
         >>> score, summary = psd_score_spacetime(pred, ref, variable="ssh")
     """
+    if xrft_kwargs.get("isotropic"):
+        # Isotropic mode collapses the two spatial axes into a single
+        # radial frequency, so the freq_<space_dim>/freq_<time_dim>
+        # plane this function indexes into below would not exist.
+        raise ValueError(
+            "psd_score_spacetime requires the 2-D (space, time) PSD; "
+            "isotropic=True is not supported here. Use psd_score "
+            "directly for isotropic spectra."
+        )
     freq_space_dim = f"freq_{space_dim}"
     freq_time_dim = f"freq_{time_dim}"
     score = psd_score(

@@ -196,3 +196,22 @@ def test_psd_score_spacetime_returns_positive_frequency_score_and_summary() -> N
         "lambda_time_max",
     }
     assert all(np.isfinite(value) for value in summary.values())
+
+
+def test_rmse_skill_scores_rejects_time_dim_in_space_dims() -> None:
+    ds = xr.Dataset(
+        {"ssh": (("time", "lat", "lon"), np.ones((2, 2, 2)))},
+        coords={"time": [0, 1], "lat": [0, 1], "lon": [0, 1]},
+    )
+    with pytest.raises(ValueError, match="time_dim"):
+        rmse_skill_scores(ds, ds, variable="ssh", space_dims=("time", "lat"))
+
+
+def test_psd_score_spacetime_rejects_isotropic_kwarg() -> None:
+    rng = np.random.default_rng(0)
+    ds = xr.Dataset(
+        {"ssh": (("time", "lon"), rng.standard_normal((16, 16)))},
+        coords={"time": np.arange(16.0), "lon": np.arange(16.0)},
+    )
+    with pytest.raises(ValueError, match="isotropic"):
+        psd_score_spacetime(ds, ds, variable="ssh", isotropic=True)
