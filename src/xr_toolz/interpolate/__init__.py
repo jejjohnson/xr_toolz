@@ -4,7 +4,7 @@ Single conceptual home for *value resampling* (D12). Sub-organized by
 source/target structure under :mod:`._src`:
 
 - :mod:`._src.gap_fill` — ``fillnan_spatial``, ``fillnan_temporal``,
-  ``fillnan_laplacian``, ``fillnan_rbf``
+  ``fillnan_laplacian``, ``fillnan_biharmonic``, ``fillnan_rbf``
 - :mod:`._src.grid_to_grid` — ``coarsen``, ``refine``
 - :mod:`._src.resample` — ``resample_time``
 - :mod:`._src.binning` — ``Grid``, ``Period``, ``SpaceTimeGrid``, ``bin_2d``,
@@ -30,6 +30,7 @@ from xr_toolz.interpolate._src.binning import (
 )
 from xr_toolz.interpolate._src.coord_remap import remap_axis, to_phase
 from xr_toolz.interpolate._src.gap_fill import (
+    fillnan_biharmonic,
     fillnan_laplacian,
     fillnan_rbf,
     fillnan_spatial,
@@ -44,14 +45,17 @@ from xr_toolz.interpolate._src.smooth import (
     lowpass_filter,
     moving_average,
 )
+from xr_toolz.interpolate.operators import FillNaNBiharmonic
 
 
 __all__ = [
+    "FillNaNBiharmonic",
     "Grid",
     "Period",
     "SpaceTimeGrid",
     "bin_2d",
     "coarsen",
+    "fillnan_biharmonic",
     "fillnan_laplacian",
     "fillnan_rbf",
     "fillnan_spatial",

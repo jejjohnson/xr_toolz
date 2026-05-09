@@ -3,7 +3,8 @@
 Spatial NaN filling uses :func:`scipy.interpolate.griddata` (linear,
 nearest, or cubic). Temporal NaN filling delegates to xarray's native
 ``interpolate_na``. ``fillnan_laplacian`` performs iterative harmonic
-relaxation. ``fillnan_rbf`` uses
+relaxation. ``fillnan_biharmonic`` wraps scikit-image's optional
+biharmonic inpainter. ``fillnan_rbf`` uses
 :class:`scipy.interpolate.RBFInterpolator` for smooth, globally-aware
 infilling.
 
@@ -19,6 +20,17 @@ from typing import Any
 import numpy as np
 import xarray as xr
 from scipy.interpolate import RBFInterpolator, griddata
+
+
+def _require_inpaint_biharmonic():
+    try:
+        from skimage.restoration import inpaint_biharmonic
+    except ImportError as exc:  # pragma: no cover - exercised without extra
+        raise ImportError(
+            "fillnan_biharmonic requires scikit-image. "
+            "Install with: pip install 'xr_toolz[image]'"
+        ) from exc
+    return inpaint_biharmonic
 
 
 def fillnan_spatial(
@@ -222,6 +234,79 @@ def fillnan_laplacian(
         input_core_dims=[[lat, lon]],
         output_core_dims=[[lat, lon]],
         vectorize=True,
+    )
+
+
+def fillnan_biharmonic(
+    da: xr.DataArray,
+    *,
+    lon: str = "lon",
+    lat: str = "lat",
+    mask: xr.DataArray | None = None,
+    split_into_regions: bool = True,
+) -> xr.DataArray:
+    """Fill NaNs in a 2-D lon/lat field by biharmonic inpainting.
+
+    Operates slice-by-slice along any leading dimensions and wraps
+    :func:`skimage.restoration.inpaint_biharmonic`. The optional ``mask``
+    follows scikit-image semantics: ``True`` marks pixels to fill.
+
+    Args:
+        da: Input DataArray with at least ``lon`` and ``lat`` dims.
+        lon: Name of the longitude dimension.
+        lat: Name of the latitude dimension.
+        mask: Optional explicit boolean mask. If ``None``, NaNs in ``da``
+            are filled.
+        split_into_regions: Forwarded to scikit-image. When ``True``, each
+            connected masked region is solved independently.
+
+    Returns:
+        Same-shaped DataArray with masked pixels inpainted. Fully masked
+        slices pass through unchanged.
+
+    Raises:
+        ImportError: If scikit-image is not installed.
+        ValueError: If ``da`` or ``mask`` is missing the spatial dimensions.
+    """
+    inpaint_biharmonic = _require_inpaint_biharmonic()
+    if lon not in da.dims or lat not in da.dims:
+        raise ValueError(f"da must have dims {lon!r} and {lat!r}")
+
+    if mask is None:
+        mask_da = da.isnull()
+    else:
+        if lon not in mask.dims or lat not in mask.dims:
+            raise ValueError(f"mask must have dims {lon!r} and {lat!r}")
+        mask_da = mask.astype(bool)
+
+    output_dtype = da.dtype if np.issubdtype(da.dtype, np.floating) else np.float64
+
+    def _fill_slice(arr: np.ndarray, mask_arr: np.ndarray) -> np.ndarray:
+        mask_bool = np.array(mask_arr, dtype=bool, copy=True)
+        if not mask_bool.any() or mask_bool.all():
+            return arr.astype(output_dtype, copy=True)
+
+        arr_filled = np.where(np.isfinite(arr), arr, 0.0).astype(np.float64)
+        out = inpaint_biharmonic(
+            arr_filled,
+            mask_bool,
+            split_into_regions=split_into_regions,
+            channel_axis=None,
+        )
+        out = np.asarray(out, dtype=output_dtype)
+        out[~mask_bool] = arr[~mask_bool]
+        return out
+
+    return xr.apply_ufunc(
+        _fill_slice,
+        da,
+        mask_da,
+        input_core_dims=[[lat, lon], [lat, lon]],
+        output_core_dims=[[lat, lon]],
+        vectorize=True,
+        dask="parallelized",
+        output_dtypes=[output_dtype],
+        dask_gufunc_kwargs={"allow_rechunk": False},
     )
 
 

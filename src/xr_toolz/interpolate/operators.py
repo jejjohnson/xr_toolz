@@ -121,6 +121,36 @@ class FillNaNLaplacian(Operator):
         }
 
 
+class FillNaNBiharmonic(Operator):
+    """Wrap :func:`xr_toolz.interpolate.fillnan_biharmonic`."""
+
+    def __init__(
+        self,
+        *,
+        lon: str = "lon",
+        lat: str = "lat",
+        split_into_regions: bool = True,
+    ):
+        self.lon = lon
+        self.lat = lat
+        self.split_into_regions = split_into_regions
+
+    def _apply(self, da):
+        return _gap_fill.fillnan_biharmonic(
+            da,
+            lon=self.lon,
+            lat=self.lat,
+            split_into_regions=self.split_into_regions,
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "lon": self.lon,
+            "lat": self.lat,
+            "split_into_regions": self.split_into_regions,
+        }
+
+
 class FillNaNRBF(Operator):
     """Wrap :func:`xr_toolz.interpolate.fillnan_rbf`."""
 
@@ -718,6 +748,7 @@ __all__ = [
     "Bin2D",
     "Coarsen",
     "Downscale",
+    "FillNaNBiharmonic",
     "FillNaNLaplacian",
     "FillNaNRBF",
     "FillNaNSpatial",
