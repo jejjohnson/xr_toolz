@@ -10,6 +10,7 @@
 * `xr_toolz.interpolate.refine_2d` — scikit-image-backed 2-D resize for bicubic/biquintic refinement; `Refine(order=...)` opts into this path.
 * `tests/test_tier_contract.py` — three-tier contract harness (Tier A reachable, Tier B numerically agrees with Tier A, Tier C numerically agrees with Tier B) for the metrics/transforms/calc pilots.
 * `xr_toolz.transforms.operators` — Tier C wrappers for the encoder primitives: `CyclicalEncode`, `FourierFeatures`, `RandomFourierFeatures`, `PositionalEncoding`, `EncodeTimeCyclical`, `EncodeTimeOrdinal`, `TimeRescale`, `TimeUnrescale` (#95).
+* `xr_toolz.interpolate` temporal helpers — `resample_time(..., method="interpolate")` for time upsampling and `fillnan_climatology` / `FillNaNClimatology` for climatological gap fill.
 
 ### Removed
 
