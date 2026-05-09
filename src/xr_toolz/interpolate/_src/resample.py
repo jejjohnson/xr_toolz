@@ -80,6 +80,8 @@ def _target_is_coarser_than_source(
     try:
         values_ns = np.asarray(coord.values, dtype="datetime64[ns]").astype("int64")
     except (TypeError, ValueError):
+        # Non-numpy datetime indexes (for example CFTimeIndex) may still be
+        # accepted by xarray; skip the coarse-frequency guard in that case.
         return False
 
     deltas = np.diff(values_ns)
@@ -106,5 +108,7 @@ def _target_delta_ns(freq: str, start: pd.Timestamp) -> int:
             return int((start + offset - start).value)
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                f"Could not infer target frequency duration for {freq!r}."
+                f"Could not infer target frequency duration for {freq!r}; "
+                'ensure freq is a valid pandas frequency string such as "1h", '
+                '"12h", or "1D".'
             ) from exc

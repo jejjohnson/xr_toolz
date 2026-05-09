@@ -150,6 +150,7 @@ def fillnan_climatology(
         anomaly = (da - climatology_broadcast).interpolate_na(dim=time, method="linear")
         out = da.fillna(anomaly + climatology_broadcast)
 
+    # Drop the synthetic groupby coordinate if it was not present on input.
     if group_name not in da.coords and group_name in out.coords:
         out = out.drop_vars(group_name)
     return out

@@ -201,6 +201,7 @@ def test_resample_time_rejects_unknown_method(ds_grid_daily):
 
 
 def _monthly_climatology_series() -> xr.DataArray:
+    """Create monthly data with seasonal cycle and linear trend."""
     time = pd.date_range("2000-01-01", periods=36, freq="MS")
     months = time.month.to_numpy()
     trend = np.arange(time.size, dtype=float)
