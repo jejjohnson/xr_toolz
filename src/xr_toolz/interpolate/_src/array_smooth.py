@@ -290,19 +290,23 @@ def gaussian_smooth_nd(
     if min_weight < 0:
         raise ValueError(f"min_weight must be >= 0, got {min_weight}")
 
+    arr_ndim = np.asarray(arr).ndim
     sigma_arr = np.asarray(sigma, dtype=float)
     if sigma_arr.ndim == 0:
         if float(sigma_arr) <= 0:
             raise ValueError(f"sigma must be > 0, got {float(sigma_arr)}")
-    elif sigma_arr.shape != (np.asarray(arr).ndim,):
+    elif sigma_arr.shape != (arr_ndim,):
         raise ValueError(
-            f"sigma must be scalar or length arr.ndim={np.asarray(arr).ndim}; "
-            f"got shape {sigma_arr.shape}"
+            f"sigma must be scalar or length arr.ndim={arr_ndim}; got shape "
+            f"{sigma_arr.shape}"
         )
-    elif np.any(sigma_arr < 0) or not np.any(sigma_arr > 0):
+    elif np.any(sigma_arr < 0):
         raise ValueError(
-            "sigma entries must be non-negative with at least one positive value, "
-            f"got {sigma_arr.tolist()}"
+            f"sigma entries must be non-negative, got {sigma_arr.tolist()}"
+        )
+    elif not np.any(sigma_arr > 0):
+        raise ValueError(
+            f"at least one sigma entry must be > 0, got {sigma_arr.tolist()}"
         )
 
     a = _as_floating(arr)
@@ -328,7 +332,8 @@ def gaussian_smooth_nd(
     out = np.full_like(numerator, np.nan)
     supported = denominator > min_weight
     np.divide(numerator, denominator, out=out, where=supported)
-    return np.where(valid_mask, out, np.nan)
+    out[~valid_mask] = np.nan
+    return out
 
 
 def lowpass_filter(
