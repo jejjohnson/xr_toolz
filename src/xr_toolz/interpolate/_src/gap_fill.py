@@ -268,7 +268,6 @@ def fillnan_biharmonic(
         ImportError: If scikit-image is not installed.
         ValueError: If ``da`` or ``mask`` is missing the spatial dimensions.
     """
-    inpaint_biharmonic = _require_inpaint_biharmonic()
     if lon not in da.dims or lat not in da.dims:
         raise ValueError(f"da must have dims {lon!r} and {lat!r}")
 
@@ -286,18 +285,29 @@ def fillnan_biharmonic(
         if not mask_bool.any() or mask_bool.all():
             return arr.astype(output_dtype, copy=True)
 
-        # scikit-image requires finite image values; masked pixels are
-        # overwritten by the solve, so a neutral finite placeholder is safe.
-        arr_filled = np.where(np.isfinite(arr), arr, 0.0).astype(np.float64)
+        # Only import scikit-image when we actually inpaint, so users without
+        # the [image] extra still get fully-finite / empty-mask passthrough.
+        inpaint_biharmonic = _require_inpaint_biharmonic()
+
+        # Extend the solver mask to cover any non-finite pixels outside the
+        # caller's mask — using NaNs as zero-valued boundary conditions would
+        # bias the solve. After the solve we restore those positions back to
+        # their original (NaN) value so the caller's mask remains the only
+        # set of cells whose values we modify.
+        nonfinite_outside_mask = ~np.isfinite(arr) & ~mask_bool
+        solver_mask = mask_bool | nonfinite_outside_mask
+        arr_filled = arr.astype(np.float64, copy=True)
+        # Inside the solver mask the value is unused but must be finite.
+        arr_filled[solver_mask] = 0.0
         out = inpaint_biharmonic(
             arr_filled,
-            mask_bool,
+            solver_mask,
             split_into_regions=split_into_regions,
             channel_axis=None,
         )
         out = np.asarray(out, dtype=output_dtype)
-        # Preserve all unmasked cells exactly, including explicit-mask cases
-        # where unrelated NaNs should remain missing (for example land).
+        # Restore everything outside the caller's mask (including unrelated
+        # NaNs and inf values) to its original input value.
         out[~mask_bool] = arr[~mask_bool]
         return out
 
