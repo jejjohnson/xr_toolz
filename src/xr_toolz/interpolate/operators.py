@@ -159,8 +159,17 @@ class FillNaNRBF(Operator):
 
 
 def _footprint_config(footprint: _mask_ops.Footprint | None) -> Any:
+    # ndarray footprints are encoded as a JSON-safe dict so cls(**get_config())
+    # round-trips without losing the exact mask. The helpers in mask_ops
+    # accept the dict form via ``_decode_footprint_config``.
     if isinstance(footprint, np.ndarray):
-        return f"<ndarray:{tuple(footprint.shape)}>"
+        return {"kind": "ndarray", "data": footprint.astype(bool).tolist()}
+    return footprint
+
+
+def _decode_footprint_config(footprint: Any) -> _mask_ops.Footprint | None:
+    if isinstance(footprint, dict) and footprint.get("kind") == "ndarray":
+        return np.asarray(footprint["data"], dtype=bool)
     return footprint
 
 
@@ -226,7 +235,7 @@ class MaskBinaryOpening(Operator):
         lon: str = "lon",
         lat: str = "lat",
     ):
-        self.footprint = footprint
+        self.footprint = _decode_footprint_config(footprint)
         self.lon = lon
         self.lat = lat
 
@@ -259,7 +268,7 @@ class MaskBinaryClosing(Operator):
         lon: str = "lon",
         lat: str = "lat",
     ):
-        self.footprint = footprint
+        self.footprint = _decode_footprint_config(footprint)
         self.lon = lon
         self.lat = lat
 
@@ -303,8 +312,8 @@ class CleanMask(Operator):
     ):
         self.fill_holes_area = fill_holes_area
         self.drop_objects_area = drop_objects_area
-        self.closing_footprint = closing_footprint
-        self.opening_footprint = opening_footprint
+        self.closing_footprint = _decode_footprint_config(closing_footprint)
+        self.opening_footprint = _decode_footprint_config(opening_footprint)
         self.lon = lon
         self.lat = lat
 

@@ -79,7 +79,9 @@ def test_resolve_footprint_shapes() -> None:
     np.testing.assert_array_equal(_resolve_footprint(2), morphology.disk(2))
     expected = {
         "disk": morphology.disk(1),
-        "square": morphology.footprint_rectangle((1, 1)),
+        # Radius-1 square: 3×3. The previous 1×1 default made opening /
+        # closing a no-op, defeating the helper.
+        "square": morphology.footprint_rectangle((3, 3)),
         "diamond": morphology.diamond(1),
         "star": morphology.star(1),
     }

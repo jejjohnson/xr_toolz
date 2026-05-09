@@ -30,6 +30,11 @@ def _require_skimage() -> Any:
     return _morph
 
 
+def _is_int_like(value: Any) -> bool:
+    """True for built-in int and numpy integers, excluding bool."""
+    return isinstance(value, int | np.integer) and not isinstance(value, bool)
+
+
 def _resolve_footprint(footprint: Footprint) -> np.ndarray:
     """Resolve a compact footprint specification to a scikit-image footprint."""
     morph = _require_skimage()
@@ -37,11 +42,15 @@ def _resolve_footprint(footprint: Footprint) -> np.ndarray:
         return footprint
     if isinstance(footprint, bool):
         raise TypeError("footprint must not be a boolean")
-    if isinstance(footprint, int):
-        return morph.disk(footprint)
+    if _is_int_like(footprint):
+        return morph.disk(int(footprint))
     if isinstance(footprint, str) and footprint in _FOOTPRINT_NAMES:
-        if footprint == "square" and hasattr(morph, "footprint_rectangle"):
-            return morph.footprint_rectangle((1, 1))
+        if footprint == "square":
+            # 3×3 — a radius-1 square. The previous (1, 1) value made
+            # opening / closing a no-op, defeating the point of the helper.
+            if hasattr(morph, "footprint_rectangle"):
+                return morph.footprint_rectangle((3, 3))
+            return getattr(morph, footprint)(3)
         return getattr(morph, footprint)(1)
     raise TypeError(
         "footprint must be an int, one of "
@@ -60,15 +69,40 @@ def _validate_bool_mask(mask: xr.DataArray, lon: str, lat: str) -> None:
 
 
 def _validate_area(area: int) -> None:
-    if isinstance(area, bool) or not isinstance(area, int):
+    if not _is_int_like(area):
         raise TypeError(f"area must be an int, got {type(area).__name__}")
-    if area < 1:
+    if int(area) < 1:
         raise ValueError(f"area (minimum pixel count) must be >= 1, got {area}")
+
+
+# Cache the scikit-image API-compatibility flag once. Determining it inside
+# apply_ufunc(vectorize=True) calls inspect.signature on every 2-D slice and
+# can dominate runtime for large leading dimensions.
+_REMOVE_SMALL_HOLES_USES_MAX_SIZE: bool | None = None
+_REMOVE_SMALL_OBJECTS_USES_MAX_SIZE: bool | None = None
+
+
+def _holes_uses_max_size(morph: Any) -> bool:
+    global _REMOVE_SMALL_HOLES_USES_MAX_SIZE
+    if _REMOVE_SMALL_HOLES_USES_MAX_SIZE is None:
+        _REMOVE_SMALL_HOLES_USES_MAX_SIZE = (
+            "max_size" in inspect.signature(morph.remove_small_holes).parameters
+        )
+    return _REMOVE_SMALL_HOLES_USES_MAX_SIZE
+
+
+def _objects_uses_max_size(morph: Any) -> bool:
+    global _REMOVE_SMALL_OBJECTS_USES_MAX_SIZE
+    if _REMOVE_SMALL_OBJECTS_USES_MAX_SIZE is None:
+        _REMOVE_SMALL_OBJECTS_USES_MAX_SIZE = (
+            "max_size" in inspect.signature(morph.remove_small_objects).parameters
+        )
+    return _REMOVE_SMALL_OBJECTS_USES_MAX_SIZE
 
 
 def _remove_small_holes(m: np.ndarray, *, area: int) -> np.ndarray:
     morph = _require_skimage()
-    if "max_size" in inspect.signature(morph.remove_small_holes).parameters:
+    if _holes_uses_max_size(morph):
         # scikit-image 0.26+ removes components with size <= max_size.
         # xr_toolz keeps the historical "smaller than area" contract, so
         # use area - 1 (e.g. area=1 removes nothing).
@@ -78,10 +112,7 @@ def _remove_small_holes(m: np.ndarray, *, area: int) -> np.ndarray:
 
 def _remove_small_objects(m: np.ndarray, *, area: int) -> np.ndarray:
     morph = _require_skimage()
-    if "max_size" in inspect.signature(morph.remove_small_objects).parameters:
-        # scikit-image 0.26+ removes components with size <= max_size.
-        # xr_toolz keeps the historical "smaller than area" contract, so
-        # use area - 1 (e.g. area=1 removes nothing).
+    if _objects_uses_max_size(morph):
         return morph.remove_small_objects(m, max_size=area - 1)
     return morph.remove_small_objects(m, min_size=area)
 
