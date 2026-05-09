@@ -150,6 +150,8 @@ def test_fillnan_idw_is_comparable_to_griddata_linear_on_synthetic_gap() -> None
     idw_rmse = np.sqrt(np.mean((idw[~finite] - values[~finite]) ** 2))
     linear_rmse = np.sqrt(np.mean((linear - values[~finite]) ** 2))
 
+    assert idw_rmse < 1.0
+    assert linear_rmse < 1.0
     assert idw_rmse <= 3.0 * linear_rmse
 
 

@@ -234,8 +234,8 @@ def fillnan_idw(
     Operates slice-by-slice along any leading dimensions. For
     ``metric="haversine"``, coordinate values are interpreted as lon/lat
     degrees and converted to radians internally; ``max_distance`` is in
-    radians. For ``metric="euclidean"``, distances are measured in grid-index
-    array-index space (column/row positions), not coordinate-value space.
+    radians. For ``metric="euclidean"``, distances are measured in array-index
+    space (column/row positions), not coordinate-value space.
     """
     _validate_idw_args(k, power, metric, max_distance, eps)
     lon_coord = np.asarray(da.coords[lon].values, dtype=float)
