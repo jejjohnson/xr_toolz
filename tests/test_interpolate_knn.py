@@ -154,7 +154,7 @@ def test_fillnan_idw_is_comparable_to_griddata_linear_on_synthetic_gap() -> None
 
 
 def test_fillnan_idw_fills_leading_dask_chunks_and_rejects_core_chunks() -> None:
-    da = pytest.importorskip("dask.array")
+    pytest.importorskip("dask.array")
     base = xr.DataArray(
         np.arange(18.0).reshape(3, 2, 3),
         dims=("time", "lat", "lon"),
@@ -171,8 +171,6 @@ def test_fillnan_idw_fills_leading_dask_chunks_and_rejects_core_chunks() -> None
     core_chunked = masked.chunk({"lat": 1, "lon": -1})
     with pytest.raises(ValueError, match="Core dimension"):
         fillnan_idw(core_chunked, k=2)
-
-    assert da is not None
 
 
 def test_idw_rejects_empty_sources_and_bad_arguments() -> None:
