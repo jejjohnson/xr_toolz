@@ -58,7 +58,7 @@ def _validate_bool_mask(mask: xr.DataArray, lon: str, lat: str) -> None:
 
 
 def _validate_area(area: int) -> None:
-    if not isinstance(area, int) or isinstance(area, bool):
+    if isinstance(area, bool) or not isinstance(area, int):
         raise TypeError(f"area must be an int, got {type(area).__name__}")
     if area < 1:
         raise ValueError(f"area must be >= 1, got {area}")
