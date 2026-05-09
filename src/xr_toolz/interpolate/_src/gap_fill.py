@@ -130,7 +130,12 @@ def fillnan_climatology(
     if min_count < 1:
         raise ValueError(f"min_count must be >= 1, got {min_count}.")
 
-    grouper = getattr(da[time].dt, group)
+    try:
+        grouper = getattr(da[time].dt, group)
+    except AttributeError as exc:
+        raise ValueError(
+            f"{time!r} coordinate must be datetime-like for climatology grouping."
+        ) from exc
     group_name = grouper.name
     grouped = da.groupby(grouper)
     climatology = grouped.mean(time, skipna=True)

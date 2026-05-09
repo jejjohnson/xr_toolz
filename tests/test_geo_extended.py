@@ -239,6 +239,8 @@ def test_fillnan_climatology_honors_min_count():
     filled = fillnan_climatology(missing, group="month", residual="zero", min_count=2)
 
     assert np.isnan(filled.sel(time="2001-01-01"))
+    relaxed = fillnan_climatology(missing, group="month", residual="zero", min_count=1)
+    assert np.isfinite(relaxed.sel(time="2001-01-01"))
 
 
 @pytest.mark.parametrize("group", ["month", "dayofyear", "season"])

@@ -41,21 +41,33 @@ def resample_time(
     Returns:
         Resampled container.
     """
-    resampler = ds.resample({time: freq})
+    if method not in _ALLOWED_RESAMPLE_METHODS | {"interpolate"}:
+        raise ValueError(
+            f"Unknown resample method {method!r}; expected one of "
+            f"{sorted(_ALLOWED_RESAMPLE_METHODS | {'interpolate'})}."
+        )
+
     if method == "interpolate":
+        _ensure_datetime_like_time(ds, time=time)
         if _target_is_coarser_than_source(ds, freq=freq, time=time):
             raise ValueError(
                 "resample_time(method='interpolate') only supports upsampling; "
                 f"got target frequency {freq!r} coarser than the input."
             )
-        return resampler.interpolate(interp_method)
+        return ds.resample({time: freq}).interpolate(interp_method)
 
-    if method not in _ALLOWED_RESAMPLE_METHODS:
-        raise ValueError(
-            f"Unknown resample method {method!r}; expected one of "
-            f"{sorted(_ALLOWED_RESAMPLE_METHODS | {'interpolate'})}."
-        )
+    resampler = ds.resample({time: freq})
     return getattr(resampler, method)()
+
+
+def _ensure_datetime_like_time(ds: xr.Dataset | xr.DataArray, *, time: str) -> None:
+    try:
+        _ = ds[time].dt.year
+    except AttributeError as exc:
+        raise ValueError(
+            f"{time!r} coordinate must be datetime-like for "
+            "resample_time(method='interpolate')."
+        ) from exc
 
 
 def _target_is_coarser_than_source(
@@ -87,4 +99,6 @@ def _target_delta_ns(freq: str, start: pd.Timestamp) -> int:
     try:
         return int(offset.nanos)
     except ValueError:
+        # Variable-length offsets such as "MS" do not expose fixed nanos;
+        # estimate their first step from the input coordinate anchor.
         return int((start + offset - start).value)
