@@ -42,6 +42,19 @@ def coarsen_conservative(
     coarsening of regular latitude/longitude grids. Non-latitude dimensions
     use uniform weights, and missing values are skipped with weights
     renormalized within each block.
+
+    Args:
+        ds: Dataset or data array to coarsen.
+        factor: Mapping from dimension name to integer coarsen factor.
+        lat: Latitude dimension name. Values must be in degrees.
+        boundary: Boundary mode forwarded to :meth:`xarray.DataArray.coarsen`.
+
+    Returns:
+        Coarsened dataset or data array with the same dimension names.
+
+    Examples:
+        >>> coarsen_conservative(da, {"lat": 4, "lon": 4})
+        >>> coarsen_conservative(ds, {"latitude": 2}, lat="latitude")
     """
     factor_dict = _validate_coarsen_factor(factor)
     if isinstance(ds, xr.Dataset):
@@ -81,9 +94,8 @@ def _coarsen_conservative_dataarray(
     _validate_lat_chunks(da, factor[lat], lat=lat)
 
     cos_lat = np.cos(np.deg2rad(da[lat]))
-    weights = cos_lat
     mask = xr.apply_ufunc(np.isfinite, da, dask="allowed")
-    weighted = weights * mask
+    weighted = cos_lat * mask
     numerator = (
         (da.where(mask, 0.0) * weighted).coarsen(dim=factor, boundary=boundary).sum()
     )

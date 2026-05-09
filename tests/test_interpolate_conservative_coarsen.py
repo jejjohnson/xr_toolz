@@ -52,9 +52,9 @@ def test_conservative_coarsen_has_high_latitude_bias_vs_uniform() -> None:
 
     conservative = coarsen_conservative(da, {"lat": 4})
     uniform = coarsen(da, {"lat": 4})
-    relative_bias = abs(float((uniform - conservative).item())) / abs(
-        float(conservative.item())
-    )
+    uniform_val = float(uniform.item())
+    conservative_val = float(conservative.item())
+    relative_bias = abs(uniform_val - conservative_val) / abs(conservative_val)
 
     assert relative_bias > 0.02
 
@@ -66,8 +66,9 @@ def test_conservative_coarsen_renormalizes_over_finite_cells() -> None:
 
     result = coarsen_conservative(da, {"lat": 4})
     weights = np.cos(np.deg2rad(lat[:4]))
-    expected = (values[:4][[0, 2, 3]] * weights[[0, 2, 3]]).sum() / weights[
-        [0, 2, 3]
+    finite_indices = [0, 2, 3]
+    expected = (values[:4][finite_indices] * weights[finite_indices]).sum() / weights[
+        finite_indices
     ].sum()
 
     assert np.isclose(float(result.isel(lat=0)), expected)
