@@ -26,11 +26,14 @@ CANONICAL_FUNCS = (
     ("coarsen", "grid_to_grid"),
     ("refine", "grid_to_grid"),
     ("regrid_like", "grid_to_grid"),
+    ("along_track", "grid_to_points"),
+    ("sample_at_points", "grid_to_points"),
     ("resample_time", "resample"),
     ("points_to_grid", "points_to_grid"),
 )
 
 CANONICAL_OPS = (
+    "AlongTrack",
     "Bin2D",
     "Coarsen",
     "Downscale",
@@ -48,6 +51,7 @@ CANONICAL_OPS = (
     "RegridLike",
     "RemapAxis",
     "ResampleTime",
+    "SampleAtPoints",
     "ToHeight",
     "ToIsopycnal",
     "ToPhase",
@@ -102,9 +106,3 @@ def test_legacy_geo_operator_names_are_gone() -> None:
     for name in ("FillNaNSpatial", "FillNaNTemporal", "ResampleTime"):
         with pytest.raises(AttributeError):
             getattr(ops, name)
-
-
-def test_placeholder_submodules_importable() -> None:
-    for sub in ("grid_to_points",):
-        mod = importlib.import_module(f"xr_toolz.interpolate._src.{sub}")
-        assert mod.__all__ == []

@@ -10,11 +10,12 @@ source/target structure under :mod:`._src`:
 - :mod:`._src.binning` — ``Grid``, ``Period``, ``SpaceTimeGrid``, ``bin_2d``,
   ``histogram_2d``
 - :mod:`._src.points_to_grid` — ``points_to_grid``
+- :mod:`._src.grid_to_points` — ``sample_at_points``, ``along_track``
 - :mod:`._src.smooth` — ``moving_average``, ``gaussian_smooth``,
   ``lowpass_filter``, ``fir_filter``
 - :mod:`._src.coord_remap` — ``remap_axis``, ``to_phase``
-- :mod:`._src.grid_to_points`, :mod:`._src.downscale` — placeholder
-  submodules for upcoming work (D12, issue #36)
+- :mod:`._src.downscale` — placeholder submodule for upcoming work
+  (D12, issue #36)
 
 Layer-1 ``Operator`` wrappers live in :mod:`xr_toolz.interpolate.operators`.
 """
@@ -36,6 +37,7 @@ from xr_toolz.interpolate._src.gap_fill import (
     fillnan_temporal,
 )
 from xr_toolz.interpolate._src.grid_to_grid import coarsen, refine, regrid_like
+from xr_toolz.interpolate._src.grid_to_points import along_track, sample_at_points
 from xr_toolz.interpolate._src.points_to_grid import points_to_grid
 from xr_toolz.interpolate._src.resample import resample_time
 from xr_toolz.interpolate._src.smooth import (
@@ -44,12 +46,16 @@ from xr_toolz.interpolate._src.smooth import (
     lowpass_filter,
     moving_average,
 )
+from xr_toolz.interpolate.operators import AlongTrack, SampleAtPoints
 
 
 __all__ = [
+    "AlongTrack",
     "Grid",
     "Period",
+    "SampleAtPoints",
     "SpaceTimeGrid",
+    "along_track",
     "bin_2d",
     "coarsen",
     "fillnan_laplacian",
@@ -66,5 +72,6 @@ __all__ = [
     "regrid_like",
     "remap_axis",
     "resample_time",
+    "sample_at_points",
     "to_phase",
 ]

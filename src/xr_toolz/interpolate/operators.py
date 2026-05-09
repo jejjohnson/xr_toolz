@@ -21,10 +21,19 @@ from xr_toolz.interpolate._src import (
     downscale as _downscale,
     gap_fill as _gap_fill,
     grid_to_grid as _grid_to_grid,
+    grid_to_points as _grid_to_points,
     points_to_grid as _points_to_grid,
     resample as _resample,
     smooth as _smooth,
 )
+
+
+def _json_fill_value(value: float | None) -> float | str | None:
+    if value is None:
+        return None
+    if np.isnan(value):
+        return "nan"
+    return float(value)
 
 
 # ---------- gap fill -------------------------------------------------------
@@ -52,7 +61,7 @@ class FillNaNTemporal(Operator):
 
     def __init__(
         self,
-        method: str = "linear",
+        method: _grid_to_points.Method = "linear",
         time: str = "time",
         max_gap: Any = None,
     ):
@@ -261,7 +270,7 @@ class RegridLike(Operator):
         target: xr.Dataset | xr.DataArray,
         *,
         dims: tuple[str, ...] = ("lat", "lon"),
-        method: str = "linear",
+        method: _grid_to_points.Method = "linear",
     ):
         self.target = target
         self.dims = tuple(dims)
@@ -381,6 +390,117 @@ class PointsToGrid(Operator):
             {"lat": len(self.grid.lat), "lon": len(self.grid.lon)},
             dtype=input_signature.dtype,
         )
+
+
+# ---------- grid → points --------------------------------------------------
+
+
+class SampleAtPoints(Operator):
+    """Wrap :func:`xr_toolz.interpolate.sample_at_points`."""
+
+    def __init__(
+        self,
+        points: xr.Dataset,
+        *,
+        coords: tuple[str, ...] = ("lat", "lon"),
+        method: str = "linear",
+        fill_value: float | None = np.nan,
+        bounds_error: bool = False,
+        point_dim: str = "points",
+    ):
+        self.points = points
+        self.coords = tuple(coords)
+        self.method = method
+        self.fill_value = fill_value
+        self.bounds_error = bounds_error
+        self.point_dim = point_dim
+
+    def _apply(self, data):
+        def _sample(da):
+            return _grid_to_points.sample_at_points(
+                da,
+                self.points,
+                coords=self.coords,
+                method=self.method,
+                fill_value=self.fill_value,
+                bounds_error=self.bounds_error,
+                point_dim=self.point_dim,
+            )
+
+        if isinstance(data, xr.Dataset):
+            return data.map(_sample)
+        return _sample(data)
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "points": f"<Dataset sizes={dict(self.points.sizes)!r}>",
+            "coords": list(self.coords),
+            "method": self.method,
+            "fill_value": _json_fill_value(self.fill_value),
+            "bounds_error": self.bounds_error,
+            "point_dim": self.point_dim,
+        }
+
+    def compute_output_signature(self, input_signature: Signature) -> Signature:
+        dims = {
+            dim: size
+            for dim, size in input_signature.dims.items()
+            if dim not in self.coords
+        }
+        dims[self.point_dim] = self.points.sizes.get(self.point_dim)
+        return Signature(dims, dtype=input_signature.dtype)
+
+
+class AlongTrack(Operator):
+    """Wrap :func:`xr_toolz.interpolate.along_track`."""
+
+    def __init__(
+        self,
+        track: xr.Dataset,
+        *,
+        coords: tuple[str, ...] = ("time", "lat", "lon"),
+        method: str = "linear",
+        fill_value: float | None = np.nan,
+        point_dim: str = "points",
+    ):
+        self.track = track
+        self.coords = tuple(coords)
+        self.method = method
+        self.fill_value = fill_value
+        self.point_dim = point_dim
+
+    def _apply(self, data):
+        def _sample(da):
+            return _grid_to_points.along_track(
+                da,
+                self.track,
+                coords=self.coords,
+                method=self.method,
+                fill_value=self.fill_value,
+                point_dim=self.point_dim,
+            )
+
+        if isinstance(data, xr.Dataset):
+            return data.map(_sample)
+        return _sample(data)
+
+    def get_config(self) -> dict[str, Any]:
+        return {
+            "track": f"<Dataset sizes={dict(self.track.sizes)!r}>",
+            "coords": list(self.coords),
+            "method": self.method,
+            "fill_value": _json_fill_value(self.fill_value),
+            "point_dim": self.point_dim,
+        }
+
+    def compute_output_signature(self, input_signature: Signature) -> Signature:
+        dims = {
+            dim: size
+            for dim, size in input_signature.dims.items()
+            if dim not in self.coords
+        }
+        dims[self.point_dim] = self.track.sizes.get(self.point_dim)
+        return Signature(dims, dtype=input_signature.dtype)
 
 
 # ---------- smoothers ------------------------------------------------------
@@ -715,6 +835,7 @@ Upscale = _downscale.Upscale
 
 
 __all__ = [
+    "AlongTrack",
     "Bin2D",
     "Coarsen",
     "Downscale",
@@ -732,6 +853,7 @@ __all__ = [
     "RegridLike",
     "RemapAxis",
     "ResampleTime",
+    "SampleAtPoints",
     "ToHeight",
     "ToIsopycnal",
     "ToPhase",
