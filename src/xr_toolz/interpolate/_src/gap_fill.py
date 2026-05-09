@@ -145,10 +145,10 @@ def fillnan_climatology(
     climatology_broadcast = climatology.sel({group_name: grouper})
 
     if residual == "zero":
-        out = da.where(da.notnull(), climatology_broadcast)
+        out = da.fillna(climatology_broadcast)
     else:
         anomaly = (da - climatology_broadcast).interpolate_na(dim=time, method="linear")
-        out = da.where(da.notnull(), anomaly + climatology_broadcast)
+        out = da.fillna(anomaly + climatology_broadcast)
 
     if group_name not in da.coords and group_name in out.coords:
         out = out.drop_vars(group_name)

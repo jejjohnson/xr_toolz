@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, cast
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -88,9 +88,9 @@ def _target_is_coarser_than_source(
         return False
     source_delta_ns = int(np.median(positive_deltas))
     start = pd.Timestamp(coord.values[0])
-    if pd.isna(start):
+    if not isinstance(start, pd.Timestamp) or pd.isna(start):
         return False
-    target_delta_ns = _target_delta_ns(freq, cast(pd.Timestamp, start))
+    target_delta_ns = _target_delta_ns(freq, start)
 
     return target_delta_ns > source_delta_ns
 
