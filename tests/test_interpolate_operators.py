@@ -21,6 +21,7 @@ from xr_toolz.interpolate import (
     Grid,
     bin_2d,
     coarsen,
+    fillnan_climatology,
     fillnan_rbf,
     histogram_2d,
     points_to_grid,
@@ -29,6 +30,7 @@ from xr_toolz.interpolate import (
 from xr_toolz.interpolate.operators import (
     Bin2D,
     Coarsen,
+    FillNaNClimatology,
     FillNaNRBF,
     FillNaNSpatial,
     FillNaNTemporal,
@@ -112,6 +114,22 @@ def test_fillnan_rbf_matches_function(da_with_nans: xr.DataArray) -> None:
     xr.testing.assert_allclose(op(da_with_nans), expected)
 
 
+def test_fillnan_climatology_operator_matches_function() -> None:
+    time = pd.date_range("2000-01-01", periods=24, freq="MS")
+    da = xr.DataArray(
+        np.tile(np.arange(12.0), 2),
+        dims="time",
+        coords={"time": time},
+    )
+    missing = da.copy()
+    missing.loc[{"time": "2001-03-01"}] = np.nan
+    op = FillNaNClimatology(group="month", residual="zero", min_count=1)
+
+    expected = fillnan_climatology(missing, group="month", residual="zero", min_count=1)
+
+    xr.testing.assert_allclose(op(missing), expected)
+
+
 def test_bin_2d_matches_function(scattered_da: xr.DataArray, grid: Grid) -> None:
     op = Bin2D(grid=grid, statistic="mean")
     expected = bin_2d(scattered_da, grid=grid, statistic="mean")
@@ -142,8 +160,9 @@ def test_points_to_grid_matches_function(grid: Grid) -> None:
     [
         FillNaNSpatial(method="linear"),
         FillNaNTemporal(method="linear", max_gap=None),
+        FillNaNClimatology(group="month", residual="linear", min_count=2),
         FillNaNRBF(kernel="thin_plate_spline", neighbors=8),
-        ResampleTime(freq="1D", method="mean"),
+        ResampleTime(freq="1D", method="interpolate", interp_method="nearest"),
         Coarsen(factor={"lon": 2}, method="mean"),
         Refine(factor={"lon": 3}, method="linear"),
         Bin2D(grid=Grid.from_bounds((0, 1), (0, 1), 0.5)),
