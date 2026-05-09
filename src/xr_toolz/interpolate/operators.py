@@ -62,7 +62,7 @@ class FillNaNTemporal(Operator):
 
     def __init__(
         self,
-        method: _grid_to_points.Method = "linear",
+        method: str = "linear",
         time: str = "time",
         max_gap: Any = None,
     ):
@@ -271,7 +271,7 @@ class RegridLike(Operator):
         target: xr.Dataset | xr.DataArray,
         *,
         dims: tuple[str, ...] = ("lat", "lon"),
-        method: _grid_to_points.Method = "linear",
+        method: str = "linear",
     ):
         self.target = target
         self.dims = tuple(dims)

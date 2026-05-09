@@ -107,16 +107,28 @@ def _collect_point_coordinates(
     points: xr.Dataset,
     coords: tuple[str, ...],
     point_dim: str,
+    *,
+    retained_dims: tuple[str, ...] = (),
 ) -> dict[str, tuple[str, np.ndarray]]:
-    """Collect output coordinates that are defined along the point dimension."""
+    """Collect output coordinates that are defined along the point dimension.
+
+    Coordinates whose names collide with retained source dimensions
+    (``retained_dims``) are skipped to avoid attaching an alternate
+    1-D coord on ``point_dim`` that conflicts with an existing
+    output dimension coord.
+    """
+    skip = set(retained_dims)
     assigned: dict[str, tuple[str, np.ndarray]] = {}
     for name in coords:
+        if name in skip:
+            continue
         assigned[name] = (point_dim, points[name].values)
     for name, coord in points.coords.items():
         if (
             isinstance(name, str)
             and coord.dims == (point_dim,)
             and name not in assigned
+            and name not in skip
         ):
             assigned[name] = (point_dim, coord.values)
     return assigned
@@ -222,7 +234,18 @@ def sample_at_points(
             "allow_rechunk": False,
         },
     )
-    return out.assign_coords(_collect_point_coordinates(points_ds, coords, point_dim))
+    # `out.dims` keeps the source dims that are NOT being interpolated over;
+    # skip those names when collecting per-point coords so we don't try to
+    # attach a 1-D point coord on top of an existing output dim coord.
+    retained = tuple(str(d) for d in out.dims if d != point_dim)
+    return out.assign_coords(
+        _collect_point_coordinates(
+            points_ds,
+            coords,
+            point_dim,
+            retained_dims=retained,
+        )
+    )
 
 
 def along_track(
@@ -257,6 +280,12 @@ def along_track(
         Values from ``da`` collocated onto ``track`` along ``point_dim``.
     """
     for name in coords:
+        # Validate presence first so the user gets a clear ValueError instead
+        # of a bare KeyError from da[name] / track[name] indexing.
+        if name not in da.coords and name not in da.dims:
+            raise ValueError(f"da is missing coord {name!r}")
+        if name not in track:
+            raise ValueError(f"track is missing variable {name!r}")
         source_is_time = np.issubdtype(da[name].values.dtype, np.datetime64)
         target_is_time = np.issubdtype(
             track[name].values.dtype,
