@@ -94,10 +94,25 @@ def kde_to_grid(
         metric: ``"euclidean"`` treats lon/lat as planar; ``"haversine"``
             converts lon/lat to radians and uses great-circle distances.
         algorithm: sklearn tree backend. ``"haversine"`` uses ``"ball_tree"``.
-        output: ``"density"`` integrates to one; ``"counts"`` scales density
-            by point count or weight sum; ``"counts_per_area"`` scales counts
-            by the mean grid-cell area.
+        output: Output normalization. See semantics below.
         rtol: Relative tolerance for sklearn tree pruning.
+
+    Output modes:
+        ``"density"`` is a probability density that integrates to 1 over the
+        grid (per unit area). For ``metric="haversine"`` the output is
+        renormalized to integrate to 1 on the sphere using
+        ``cos(lat) * dlat * dlon`` (steradian) cell areas, since sklearn's
+        ``KernelDensity`` only normalizes correctly for the Euclidean metric.
+
+        ``"counts_per_area"`` is the expected per-unit-area count
+        (``density * n_eff``). Integrating over the grid recovers the input
+        point count (or weight sum). Comparable across grids of different
+        resolutions.
+
+        ``"counts"`` is the expected per-cell count
+        (``density * n_eff * cell_area``). Summing over the grid recovers
+        the input point count (or weight sum). Scales with cell size, so it
+        is only comparable across grids of identical resolution.
 
     Returns:
         DataArray on ``grid`` with ``("lat", "lon")`` dimensions.
@@ -106,6 +121,11 @@ def kde_to_grid(
         raise ValueError(f"unknown output mode {output!r}")
     if metric not in ("euclidean", "haversine"):
         raise ValueError(f"unknown metric {metric!r}")
+    if grid.lon.size < 2 or grid.lat.size < 2:
+        raise ValueError(
+            "kde_to_grid requires grid.lon and grid.lat to each have at least "
+            f"2 points; got {grid.lon.size} lon, {grid.lat.size} lat"
+        )
 
     lon_values = np.ravel(np.asarray(lons, dtype=float))
     lat_values = np.ravel(np.asarray(lats, dtype=float))
@@ -155,15 +175,30 @@ def kde_to_grid(
 
     density = np.exp(kde.score_samples(queries)).reshape(len(grid.lat), len(grid.lon))
 
+    # Cell area: deg² for Euclidean, steradian (cos(lat)*dlat*dlon, radians²)
+    # for haversine. sklearn normalizes assuming flat (lat, lon) integration in
+    # haversine mode, so we re-normalize on the sphere to recover ∫p dA = 1.
+    if metric == "haversine":
+        dlat = float(np.mean(np.abs(np.diff(np.deg2rad(np.asarray(grid.lat))))))
+        dlon = float(np.mean(np.abs(np.diff(np.deg2rad(np.asarray(grid.lon))))))
+        cell_area = (
+            np.cos(np.deg2rad(np.asarray(grid.lat, dtype=float)))[:, None] * dlat * dlon
+        )
+        total = float((density * cell_area).sum())
+        if total > 0:
+            density = density / total
+    else:
+        dlat = float(np.mean(np.abs(np.diff(np.asarray(grid.lat, dtype=float)))))
+        dlon = float(np.mean(np.abs(np.diff(np.asarray(grid.lon, dtype=float)))))
+        cell_area = np.full(density.shape, dlat * dlon)
+
     n_eff = pts.shape[0] if sample_weight is None else float(sample_weight.sum())
     if output == "density":
         data = density
-    elif output == "counts":
+    elif output == "counts_per_area":
         data = density * n_eff
-    else:
-        dlon = float(np.mean(np.abs(np.diff(np.asarray(grid.lon, dtype=float)))))
-        dlat = float(np.mean(np.abs(np.diff(np.asarray(grid.lat, dtype=float)))))
-        data = density * n_eff * dlon * dlat
+    else:  # "counts" — per-cell expected count
+        data = density * n_eff * cell_area
 
     return xr.DataArray(
         data=data,

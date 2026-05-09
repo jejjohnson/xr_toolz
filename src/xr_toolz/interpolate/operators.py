@@ -408,12 +408,17 @@ class KDEToGrid(Operator):
         self.output = output
         self.rtol = float(rtol)
 
-    def _apply(self, payload):
+    def _apply(self, payload) -> xr.DataArray:
         if len(payload) == 2:
             lons, lats = payload
             weights = None
-        else:
+        elif len(payload) == 3:
             lons, lats, weights = payload
+        else:
+            raise ValueError(
+                "KDEToGrid expects (lons, lats) or (lons, lats, weights); "
+                f"got payload of length {len(payload)}"
+            )
         return _points_to_grid.kde_to_grid(
             lons,
             lats,
@@ -428,9 +433,13 @@ class KDEToGrid(Operator):
         )
 
     def get_config(self) -> dict[str, Any]:
+        # Coerce numpy scalar bandwidths so json.dumps(get_config()) works.
+        bw = (
+            self.bandwidth if isinstance(self.bandwidth, str) else float(self.bandwidth)
+        )
         return {
             "grid": "<Grid>",
-            "bandwidth": self.bandwidth,
+            "bandwidth": bw,
             "kernel": self.kernel,
             "metric": self.metric,
             "algorithm": self.algorithm,
@@ -787,6 +796,7 @@ __all__ = [
     "FromSigma",
     "GaussianSmooth",
     "Histogram2D",
+    "KDEToGrid",
     "LowpassFilter",
     "MovingAverage",
     "PointsToGrid",

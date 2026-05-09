@@ -28,6 +28,7 @@ CANONICAL_FUNCS = (
     ("regrid_like", "grid_to_grid"),
     ("resample_time", "resample"),
     ("points_to_grid", "points_to_grid"),
+    ("kde_to_grid", "points_to_grid"),
 )
 
 CANONICAL_OPS = (
@@ -41,6 +42,7 @@ CANONICAL_OPS = (
     "FromSigma",
     "GaussianSmooth",
     "Histogram2D",
+    "KDEToGrid",
     "LowpassFilter",
     "MovingAverage",
     "PointsToGrid",
