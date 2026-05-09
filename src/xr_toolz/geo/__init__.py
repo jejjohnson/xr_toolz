@@ -75,6 +75,8 @@ from xr_toolz.geo._src.validation import (
     check_dataset_coords,
     decode_cf_time,
     rename_coords,
+    rename_from_cf_standard_names,
+    rename_to_cf_standard_names,
     rename_variables,
     validate_latitude,
     validate_longitude,
@@ -92,7 +94,12 @@ from xr_toolz.geo._src.wavelet_utils import (
     scale_to_wavenumber,
     wavenumber_to_scale,
 )
-from xr_toolz.geo.operators import BandpassWavelength, WaveletPowerSpectrum
+from xr_toolz.geo.operators import (
+    BandpassWavelength,
+    RenameFromCFStandardNames,
+    RenameToCFStandardNames,
+    WaveletPowerSpectrum,
+)
 
 
 # Names moved to xr_toolz.metrics — kept importable for one release with
@@ -161,6 +168,8 @@ __all__ = [
     "REGIONS",
     "BandpassWavelength",
     "RegionSpec",
+    "RenameFromCFStandardNames",
+    "RenameToCFStandardNames",
     "WaveletPowerSpectrum",
     "add_climatology",
     "add_country_mask",
@@ -199,6 +208,8 @@ __all__ = [
     "remove_climatology",
     "remove_mean",
     "rename_coords",
+    "rename_from_cf_standard_names",
+    "rename_to_cf_standard_names",
     "rename_variables",
     "reproject",
     "resolve_region",
