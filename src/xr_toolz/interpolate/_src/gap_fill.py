@@ -286,6 +286,8 @@ def fillnan_biharmonic(
         if not mask_bool.any() or mask_bool.all():
             return arr.astype(output_dtype, copy=True)
 
+        # scikit-image requires finite image values; masked pixels are
+        # overwritten by the solve, so a neutral finite placeholder is safe.
         arr_filled = np.where(np.isfinite(arr), arr, 0.0).astype(np.float64)
         out = inpaint_biharmonic(
             arr_filled,
@@ -294,6 +296,8 @@ def fillnan_biharmonic(
             channel_axis=None,
         )
         out = np.asarray(out, dtype=output_dtype)
+        # Preserve all unmasked cells exactly, including explicit-mask cases
+        # where unrelated NaNs should remain missing (for example land).
         out[~mask_bool] = arr[~mask_bool]
         return out
 
