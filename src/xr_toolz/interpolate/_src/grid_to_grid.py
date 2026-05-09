@@ -15,6 +15,9 @@ import numpy as np
 import xarray as xr
 
 
+_RESIZE_MODES = frozenset({"reflect", "constant", "edge", "symmetric", "wrap"})
+
+
 def coarsen(
     ds: xr.Dataset | xr.DataArray,
     factor: dict[str, int],
@@ -93,10 +96,14 @@ def refine_2d(
         raise ValueError(f"da must have dims {lat!r} and {lon!r}.")
     if lat not in factor or lon not in factor:
         raise ValueError(f"factor must include both {lat!r} and {lon!r}.")
+    # bool is an int subclass, but True/False are not meaningful spline orders.
     if isinstance(order, bool) or not isinstance(order, int):
         raise ValueError(f"order must be an integer in 0..5, got {order!r}.")
     if order not in range(6):
         raise ValueError(f"order must be in 0..5, got {order!r}.")
+    if mode not in _RESIZE_MODES:
+        valid_modes = sorted(_RESIZE_MODES)
+        raise ValueError(f"mode must be one of {valid_modes!r}, got {mode!r}.")
 
     f_lat = factor[lat]
     f_lon = factor[lon]

@@ -33,7 +33,8 @@ ResizeMode = Literal["reflect", "constant", "edge", "symmetric", "wrap"]
 def _as_integer_factor(dim: str, factor: int | float) -> int:
     if isinstance(factor, bool) or int(factor) != factor:
         raise ValueError(
-            f"refinement factor for {dim!r} must be an integer for order=None."
+            f"refinement factor for {dim!r} must be an integer for the default "
+            "interpolation method."
         )
     return int(factor)
 

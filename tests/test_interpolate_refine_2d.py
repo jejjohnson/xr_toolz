@@ -147,6 +147,10 @@ def test_refine_operator_config_round_trips_order_fields() -> None:
         ({"factor": {"lat": 2}, "order": 3}, "factor must include both"),
         ({"factor": {"lat": 0, "lon": 2}, "order": 3}, "must be positive"),
         ({"factor": {"lat": -1, "lon": 2}, "order": 3}, "must be positive"),
+        (
+            {"factor": {"lat": 2, "lon": 2}, "mode": "invalid"},
+            "mode must be one of",
+        ),
     ],
 )
 def test_refine_2d_validation_errors(
