@@ -90,6 +90,7 @@ from xr_toolz.metrics._src.spectral import (
     BandLimitedRMSE,
     FrequencyBandSkill,
     PSDScore,
+    WaveletPSDScore,
     band_limited_rmse,
     evaluate_by_frequency_band,
     find_intercept_1D,
@@ -98,6 +99,8 @@ from xr_toolz.metrics._src.spectral import (
     psd_score,
     resolved_scale,
     resolved_scale_2d,
+    wavelet_psd_score,
+    wavelet_resolved_scale_map,
 )
 from xr_toolz.metrics._src.structural import (
     SSIM,
@@ -143,6 +146,7 @@ __all__ = [
     "SkillByLeadTime",
     "SpreadSkillRatio",
     "Wasserstein1",
+    "WaveletPSDScore",
     "along_track_psd_score",
     "band_limited_rmse",
     "bias",
@@ -189,4 +193,6 @@ __all__ = [
     "spread_skill_ratio",
     "ssim",
     "wasserstein_1",
+    "wavelet_psd_score",
+    "wavelet_resolved_scale_map",
 ]
