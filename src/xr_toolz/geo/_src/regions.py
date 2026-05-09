@@ -33,6 +33,8 @@ def bbox_region(
     lon_max: float,
 ) -> regionmask.Regions:
     """Construct a ``regionmask.Regions`` from a rectangular bounding box."""
+    _validate_id(id)
+    _validate_bounds(lat_min=lat_min, lat_max=lat_max)
     if lon_min <= lon_max:
         poly = box(lon_min, lat_min, lon_max, lat_max)
     else:
@@ -219,9 +221,17 @@ def _load_geojson(data: dict[str, Any] | str | Path) -> dict[str, Any]:
     text = str(data)
     if text.lstrip().startswith(("{", "[")):
         try:
-            return json.loads(text)
+            parsed = json.loads(text)
         except json.JSONDecodeError as exc:
             raise ValueError("Could not parse GeoJSON string.") from exc
+        # GeoJSON Features/Polygons are JSON objects; reject top-level
+        # arrays so the downstream `.get("type")` doesn't AttributeError.
+        if not isinstance(parsed, dict):
+            raise ValueError(
+                "GeoJSON must be a JSON object (Feature, Polygon, "
+                f"MultiPolygon, etc.); got top-level {type(parsed).__name__}."
+            )
+        return parsed
     return _load_json_file(Path(text))
 
 

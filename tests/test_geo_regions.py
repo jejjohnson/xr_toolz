@@ -214,3 +214,39 @@ def test_viz_projection_presets_derive_from_region_registry():
     assert PRESETS["gulf_stream"]["extent"] == (-80.0, -50.0, 30.0, 45.0)
     assert PRESETS["global"]["extent"] is None
     assert _resolve_projection("gulf_stream") is not None
+
+
+def test_subset_to_region_operator_dict_round_trip():
+    """``SubsetToRegion(**op.get_config())`` must reconstruct a working
+    operator for non-string regions — that's the leaf-operator replay
+    contract used by ApplyToEach."""
+    custom = SubsetToRegion(
+        custom_region(
+            id="box",
+            display_name="Box",
+            lat_min=30.0,
+            lat_max=45.0,
+            lon_min=-80.0,
+            lon_max=-50.0,
+        ),
+        validate=False,
+    )
+    rebuilt = SubsetToRegion(**custom.get_config())
+    out = rebuilt(_rectilinear_ds())
+    assert out.sizes["lon"] > 0
+
+
+def test_bbox_region_validates_inputs():
+    with pytest.raises(ValueError, match="non-empty"):
+        bbox_region(
+            id="", name="x", lat_min=0.0, lat_max=10.0, lon_min=0.0, lon_max=10.0
+        )
+    with pytest.raises(ValueError, match="lat_min"):
+        bbox_region(
+            id="r", name="r", lat_min=10.0, lat_max=10.0, lon_min=0.0, lon_max=10.0
+        )
+
+
+def test_polygon_from_geojson_rejects_top_level_array():
+    with pytest.raises(ValueError, match="top-level"):
+        polygon_from_geojson("[1, 2, 3]")

@@ -202,12 +202,17 @@ class SubsetBBox(Operator):
 class SubsetToRegion(Operator):
     def __init__(
         self,
-        region: str | _regions.RegionSpec | regionmask.Regions,
+        region: str | _regions.RegionSpec | regionmask.Regions | dict[str, Any],
         *,
         lon: str = "lon",
         lat: str = "lat",
         validate: bool = True,
     ):
+        # Accept the dict form emitted by ``get_config`` so the standard
+        # ``cls(**op.get_config())`` round-trip used by ApplyToEach works
+        # for custom regions, not just registry strings.
+        if isinstance(region, dict):
+            region = _regions.region_from_dict(region)
         self.region = region
         self.lon = lon
         self.lat = lat
