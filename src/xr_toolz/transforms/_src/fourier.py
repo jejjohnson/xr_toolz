@@ -156,7 +156,8 @@ def _spectral_flux_dataset(
     flux.name = "flux"
     data_vars: dict[str, xr.DataArray] = {"transfer": transfer, "flux": flux}
     if return_2d:
-        data_vars["transfer_2d"] = transfer_2d.rename("transfer_2d")
+        # transfer_2d is already named upstream; just attach it.
+        data_vars["transfer_2d"] = transfer_2d
     return xr.Dataset(data_vars)
 
 
@@ -336,7 +337,10 @@ def integral_scale(
 
     Notes:
         ``moment=1`` returns ``∫ψ dk / ∫kψ dk``. ``moment=2`` returns the
-        Taylor microscale ``λ = sqrt(∫ψ dk / ∫k²ψ dk)``.
+        Taylor microscale ``λ = sqrt(∫ψ dk / ∫k²ψ dk)``. The integrals
+        are approximated as plain sums, so the ``dk`` factors only
+        cancel cleanly when the wavenumber grid is uniformly spaced;
+        for non-uniform spacing prefer trapezoidal integration upstream.
     """
     if moment not in (1, 2):
         raise ValueError(

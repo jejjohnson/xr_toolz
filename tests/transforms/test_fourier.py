@@ -198,3 +198,19 @@ def test_compensated_spectrum_is_flat_for_power_law():
     compensated = compensated_spectrum(psd, exponent=3.0)
     assert compensated.name == "energy_compensated"
     np.testing.assert_allclose(compensated, 1.0)
+
+
+def test_fit_spectral_slope_raises_when_window_has_too_few_samples():
+    k = np.linspace(1.0, 100.0, 200)
+    psd = xr.DataArray(k ** (-5.0 / 3.0), dims="freq_r", coords={"freq_r": k})
+    # An empty/sparse window leaves <2 samples, so the linear fit is
+    # underdetermined and the function must surface that explicitly.
+    with pytest.raises(ValueError, match="At least two"):
+        fit_spectral_slope(psd, k_min=200.0, k_max=300.0)
+
+
+def test_integral_scale_rejects_unsupported_moment():
+    k = np.linspace(0.0, 10.0, 11)
+    psd = xr.DataArray(np.ones_like(k), dims="freq_r", coords={"freq_r": k})
+    with pytest.raises(ValueError, match="moment must be 1"):
+        integral_scale(psd, moment=3)
