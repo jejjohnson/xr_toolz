@@ -529,15 +529,28 @@ class IDWToPoints(Operator):
 
     def get_config(self) -> dict[str, Any]:
         return {
-            "dst_shape": list(
-                np.broadcast_shapes(self.dst_lons.shape, self.dst_lats.shape)
-            ),
+            "dst_lons": self.dst_lons.tolist(),
+            "dst_lats": self.dst_lats.tolist(),
             "k": self.k,
             "power": self.power,
             "metric": self.metric,
             "max_distance": self.max_distance,
             "eps": self.eps,
         }
+
+    def compute_output_signature(self, input_signature: Any) -> Signature:
+        # Payload is a (lons, lats, values) tuple — pull dtype from values.
+        if isinstance(input_signature, tuple) and len(input_signature) == 3:
+            dtype = input_signature[2].dtype
+        else:
+            dtype = getattr(input_signature, "dtype", None)
+        out_shape = np.broadcast_shapes(self.dst_lons.shape, self.dst_lats.shape)
+        dims = (
+            {"point": int(out_shape[0])}
+            if len(out_shape) == 1
+            else {f"dim_{i}": int(s) for i, s in enumerate(out_shape)}
+        )
+        return Signature(dims, dtype=dtype)
 
 
 # ---------- smoothers ------------------------------------------------------
