@@ -61,7 +61,7 @@ def _validate_area(area: int) -> None:
     if isinstance(area, bool) or not isinstance(area, int):
         raise TypeError(f"area must be an int, got {type(area).__name__}")
     if area < 1:
-        raise ValueError(f"area must be >= 1, got {area}")
+        raise ValueError(f"area (minimum pixel count) must be >= 1, got {area}")
 
 
 def _remove_small_holes(m: np.ndarray, *, area: int) -> np.ndarray:
@@ -111,6 +111,15 @@ def remove_small_holes_2d(
 
     ``True`` means "masked / needs filling" in xr_toolz interpolation
     workflows, so this removes small unmasked islands inside larger gaps.
+
+    Args:
+        mask: Boolean mask with ``lat`` and ``lon`` dimensions.
+        area: False regions smaller than this pixel count are filled.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+
+    Returns:
+        Same-shaped boolean mask with small False holes filled.
     """
     _validate_area(area)
     return _wrap2d(
@@ -132,6 +141,15 @@ def remove_small_objects_2d(
 
     ``True`` means "masked / needs filling" in xr_toolz interpolation
     workflows, so this removes isolated masked specks.
+
+    Args:
+        mask: Boolean mask with ``lat`` and ``lon`` dimensions.
+        area: True regions smaller than this pixel count are dropped.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+
+    Returns:
+        Same-shaped boolean mask with small True objects removed.
     """
     _validate_area(area)
     return _wrap2d(
@@ -149,7 +167,17 @@ def binary_opening_2d(
     lon: str = "lon",
     lat: str = "lat",
 ) -> xr.DataArray:
-    """Morphologically open a 2-D boolean mask slice-by-slice."""
+    """Morphologically open a 2-D boolean mask slice-by-slice.
+
+    Args:
+        mask: Boolean mask with ``lat`` and ``lon`` dimensions.
+        footprint: Structuring element specification.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+
+    Returns:
+        Same-shaped boolean mask after erosion followed by dilation.
+    """
     morph = _require_skimage()
     fp = _resolve_footprint(footprint)
     return _wrap2d(
@@ -167,7 +195,17 @@ def binary_closing_2d(
     lon: str = "lon",
     lat: str = "lat",
 ) -> xr.DataArray:
-    """Morphologically close a 2-D boolean mask slice-by-slice."""
+    """Morphologically close a 2-D boolean mask slice-by-slice.
+
+    Args:
+        mask: Boolean mask with ``lat`` and ``lon`` dimensions.
+        footprint: Structuring element specification.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+
+    Returns:
+        Same-shaped boolean mask after dilation followed by erosion.
+    """
     morph = _require_skimage()
     fp = _resolve_footprint(footprint)
     return _wrap2d(
@@ -193,6 +231,18 @@ def clean_mask(
     Steps run in fixed order when their corresponding keyword is not
     ``None``: remove small holes, remove small objects, binary closing,
     then binary opening.
+
+    Args:
+        mask: Boolean mask with ``lat`` and ``lon`` dimensions.
+        fill_holes_area: Optional hole area threshold.
+        drop_objects_area: Optional object area threshold.
+        closing_footprint: Optional binary-closing footprint.
+        opening_footprint: Optional binary-opening footprint.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+
+    Returns:
+        Same-shaped cleaned boolean mask.
     """
     out = mask
     if fill_holes_area is not None:

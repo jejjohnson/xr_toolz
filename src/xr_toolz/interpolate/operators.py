@@ -165,7 +165,13 @@ def _footprint_config(footprint: _mask_ops.Footprint | None) -> Any:
 
 
 class MaskRemoveSmallHoles(Operator):
-    """Wrap :func:`xr_toolz.interpolate.remove_small_holes_2d`."""
+    """Operator wrapper for filling small unmasked holes in mask pipelines.
+
+    Args:
+        area: False regions smaller than this pixel count are filled.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+    """
 
     def __init__(self, *, area: int = 4, lon: str = "lon", lat: str = "lat"):
         self.area = area
@@ -182,7 +188,13 @@ class MaskRemoveSmallHoles(Operator):
 
 
 class MaskRemoveSmallObjects(Operator):
-    """Wrap :func:`xr_toolz.interpolate.remove_small_objects_2d`."""
+    """Operator wrapper for dropping small masked specks in mask pipelines.
+
+    Args:
+        area: True regions smaller than this pixel count are dropped.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+    """
 
     def __init__(self, *, area: int = 4, lon: str = "lon", lat: str = "lat"):
         self.area = area
@@ -199,7 +211,13 @@ class MaskRemoveSmallObjects(Operator):
 
 
 class MaskBinaryOpening(Operator):
-    """Wrap :func:`xr_toolz.interpolate.binary_opening_2d`."""
+    """Operator wrapper for binary opening inside ``Sequential`` pipelines.
+
+    Args:
+        footprint: Structuring element specification.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+    """
 
     def __init__(
         self,
@@ -226,7 +244,13 @@ class MaskBinaryOpening(Operator):
 
 
 class MaskBinaryClosing(Operator):
-    """Wrap :func:`xr_toolz.interpolate.binary_closing_2d`."""
+    """Operator wrapper for binary closing inside ``Sequential`` pipelines.
+
+    Args:
+        footprint: Structuring element specification.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+    """
 
     def __init__(
         self,
@@ -253,7 +277,19 @@ class MaskBinaryClosing(Operator):
 
 
 class CleanMask(Operator):
-    """Convenience operator wrapping :func:`xr_toolz.interpolate.clean_mask`."""
+    """Convenience operator for the common mask-cleanup pipeline.
+
+    The fixed order is remove small holes, remove small objects, binary
+    closing, then binary opening; each step is opt-in through its keyword.
+
+    Args:
+        fill_holes_area: Optional hole area threshold.
+        drop_objects_area: Optional object area threshold.
+        closing_footprint: Optional binary-closing footprint.
+        opening_footprint: Optional binary-opening footprint.
+        lon: Longitude dimension name.
+        lat: Latitude dimension name.
+    """
 
     def __init__(
         self,

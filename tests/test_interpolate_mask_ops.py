@@ -168,7 +168,7 @@ def test_dask_time_chunks_preserved_and_core_chunks_rejected() -> None:
 
 
 @pytest.mark.parametrize(
-    "mask_op",
+    "operator",
     [
         MaskRemoveSmallHoles(area=2),
         MaskRemoveSmallObjects(area=2),
@@ -181,9 +181,9 @@ def test_dask_time_chunks_preserved_and_core_chunks_rejected() -> None:
             opening_footprint="diamond",
         ),
     ],
-    ids=lambda mask_op: type(mask_op).__name__,
+    ids=lambda operator: type(operator).__name__,
 )
-def test_mask_operator_config_is_json_safe(mask_op) -> None:
-    cfg = mask_op.get_config()
+def test_mask_operator_config_is_json_safe(operator) -> None:
+    cfg = operator.get_config()
     serialized = json.dumps(cfg)
     assert json.loads(serialized) == cfg
