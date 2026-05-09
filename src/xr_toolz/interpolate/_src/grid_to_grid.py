@@ -65,6 +65,28 @@ def refine_2d(
     bilinear, ``2`` biquadratic, ``3`` bicubic, ``4`` biquartic, and ``5``
     biquintic. Leading dimensions are broadcast independently with
     :func:`xarray.apply_ufunc`.
+
+    Args:
+        da: Input data with ``lat`` and ``lon`` dimensions.
+        factor: Per-axis resize factors. Must include both ``lat`` and ``lon``.
+        lat: Name of the latitude-like dimension.
+        lon: Name of the longitude-like dimension.
+        order: Spline interpolation order from 0 to 5.
+        anti_aliasing: Whether to apply scikit-image's anti-aliasing filter.
+            ``None`` uses scikit-image's default.
+        mode: Boundary extension mode passed to scikit-image.
+        cval: Fill value used when ``mode="constant"``.
+
+    Returns:
+        Resized data with updated ``lat`` and ``lon`` coordinates.
+
+    Raises:
+        ImportError: If scikit-image is not installed.
+        ValueError: If required dims or factors are missing, ``order`` is
+            outside 0..5, or either resize factor is non-positive.
+
+    Examples:
+        >>> refined = refine_2d(da, factor={"lat": 2, "lon": 2}, order=3)
     """
     resize = _get_skimage_resize()
     if lat not in da.dims or lon not in da.dims:

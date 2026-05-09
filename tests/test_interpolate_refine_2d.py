@@ -146,6 +146,7 @@ def test_refine_operator_config_round_trips_order_fields() -> None:
         ({"factor": {"lat": 2, "lon": 2}, "order": 6}, "order must be in 0..5"),
         ({"factor": {"lat": 2}, "order": 3}, "factor must include both"),
         ({"factor": {"lat": 0, "lon": 2}, "order": 3}, "must be positive"),
+        ({"factor": {"lat": -1, "lon": 2}, "order": 3}, "must be positive"),
     ],
 )
 def test_refine_2d_validation_errors(
@@ -157,8 +158,12 @@ def test_refine_2d_validation_errors(
         refine_2d(plate, **kwargs)
 
 
-def test_refine_2d_requires_lat_lon_dims(plate: xr.DataArray) -> None:
-    renamed = plate.rename({"lat": "y"})
+@pytest.mark.parametrize("rename", [{"lat": "y"}, {"lon": "x"}])
+def test_refine_2d_requires_lat_lon_dims(
+    plate: xr.DataArray,
+    rename: dict[str, str],
+) -> None:
+    renamed = plate.rename(rename)
 
     with pytest.raises(ValueError, match="da must have dims"):
         refine_2d(renamed, factor={"lat": 2, "lon": 2})

@@ -246,6 +246,18 @@ class Refine(Operator):
 
     If ``order`` is set, dispatches to the scikit-image-backed 2-D resize
     path and requires ``factor`` to include both ``lat`` and ``lon``.
+
+    Args:
+        factor: Per-dimension refinement factors.
+        method: Interpolation method for the default ``xr.interp`` path.
+        order: Optional scikit-image spline order (0..5). When set, uses the
+            2-D resize path.
+        lat: Latitude-like dimension name for the 2-D resize path.
+        lon: Longitude-like dimension name for the 2-D resize path.
+        anti_aliasing: Anti-aliasing setting passed to scikit-image.
+        mode: Boundary mode for scikit-image (``"reflect"``, ``"constant"``,
+            ``"edge"``, ``"symmetric"``, or ``"wrap"``).
+        cval: Fill value used when ``mode="constant"``.
     """
 
     def __init__(
