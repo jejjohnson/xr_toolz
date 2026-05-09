@@ -14,6 +14,7 @@ Method = Literal["linear", "nearest", "slinear", "cubic", "quintic"]
 
 
 def _as_numeric_axis(values: np.ndarray, *, name: str) -> np.ndarray:
+    """Convert source coordinate values to a finite numeric interpolation axis."""
     arr = np.asarray(values)
     if np.issubdtype(arr.dtype, np.datetime64):
         if np.any(np.isnat(arr)):
@@ -33,6 +34,7 @@ def _as_numeric_points(
     *,
     name: str,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Convert target point values to numeric values plus a finite-value mask."""
     arr = np.asarray(values)
     if np.issubdtype(arr.dtype, np.datetime64):
         valid = ~np.isnat(arr)
@@ -48,6 +50,7 @@ def _as_numeric_points(
 
 
 def _normalize_axis(da: xr.DataArray, name: str) -> tuple[xr.DataArray, np.ndarray]:
+    """Validate a 1-D coordinate axis and return it in ascending order."""
     if name not in da.dims:
         raise ValueError(f"da is missing required coord dim {name!r}")
     if name not in da.coords:
@@ -74,6 +77,7 @@ def _normalize_points(
     coords: tuple[str, ...],
     point_dim: str,
 ) -> xr.Dataset:
+    """Normalize point mappings or datasets to a validated point dataset."""
     if isinstance(points, Mapping):
         arrays = {name: np.asarray(points[name]) for name in coords if name in points}
         lengths = {arr.shape[0] for arr in arrays.values() if arr.ndim == 1}
@@ -99,7 +103,12 @@ def _normalize_points(
     return points
 
 
-def _point_coords(points: xr.Dataset, coords: tuple[str, ...], point_dim: str) -> dict:
+def _collect_point_coordinates(
+    points: xr.Dataset,
+    coords: tuple[str, ...],
+    point_dim: str,
+) -> dict:
+    """Collect output coordinates that are defined along the point dimension."""
     assigned: dict[str, tuple[str, np.ndarray]] = {}
     for name in coords:
         assigned[name] = (point_dim, points[name].values)
@@ -114,6 +123,7 @@ def _point_coords(points: xr.Dataset, coords: tuple[str, ...], point_dim: str) -
 
 
 def _check_dask_chunks(da: xr.DataArray, coords: tuple[str, ...]) -> None:
+    """Raise if dask chunks split any interpolation dimension."""
     if da.chunks is None:
         return
     chunked = [
@@ -176,7 +186,13 @@ def sample_at_points(
         valid &= finite
     interp_pts = np.column_stack(point_columns)
 
-    result_dtype = np.result_type(normalized.dtype, np.float64)
+    if np.issubdtype(normalized.dtype, np.floating) or np.issubdtype(
+        normalized.dtype,
+        np.complexfloating,
+    ):
+        result_dtype = normalized.dtype
+    else:
+        result_dtype = np.dtype(np.float64)
 
     def _interp_block(arr: np.ndarray) -> np.ndarray:
         out = np.full(interp_pts.shape[0], np.nan, dtype=result_dtype)
@@ -206,7 +222,7 @@ def sample_at_points(
             "allow_rechunk": False,
         },
     )
-    return out.assign_coords(_point_coords(points_ds, coords, point_dim))
+    return out.assign_coords(_collect_point_coordinates(points_ds, coords, point_dim))
 
 
 def along_track(
