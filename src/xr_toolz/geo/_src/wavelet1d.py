@@ -444,7 +444,7 @@ def _normalize_mother(mother: str) -> Mother:
     name = mother.lower()
     if name not in {"morlet", "paul", "dog"}:
         raise ValueError("mother must be 'morlet', 'paul', or 'dog'")
-    return name  # ty: ignore[invalid-return-type]
+    return cast(Mother, name)
 
 
 def _lag1_autocorrelation(da: xr.DataArray, dim: str) -> float:

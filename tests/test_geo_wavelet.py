@@ -62,7 +62,7 @@ def test_cwt1d_recovers_synthetic_sine_period() -> None:
     spectrum = out["power_rect"].where(out["coi_mask"]).mean("time", skipna=True)
     peak_scale = spectrum.idxmax("scale")
     peak_period = out["period"].sel(scale=peak_scale)
-    assert float(peak_period) == pytest.approx(8.0, rel=0.12)
+    assert float(peak_period) == pytest.approx(8.0, rel=0.07)
 
 
 def test_cwt1d_supports_paul_and_dog_mothers() -> None:
@@ -91,7 +91,7 @@ def test_wavelet_significance_and_dominant_period_map() -> None:
     pmap = dominant_period_map(
         out["power_rect"], coi_mask=out["coi_mask"], signif_mask=sig
     )
-    assert float(pmap) == pytest.approx(8.0, rel=0.2)
+    assert float(pmap) == pytest.approx(8.0, rel=0.07)
 
 
 def test_cwt1d_pixelwise_over_outer_dimensions() -> None:
