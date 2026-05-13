@@ -299,7 +299,7 @@ def _cwt1d_numpy(
     arr = np.asarray(values, dtype=float)
     n = arr.size
     if n < 2:
-        raise ValueError("cwt1d requires at least two samples")
+        raise ValueError("CWT requires at least two samples")
     nan_mask = np.isnan(arr)
     if nan_mask.any():
         fill = float(np.nanmean(arr)) if not np.all(nan_mask) else 0.0
@@ -453,10 +453,10 @@ def _normalize_mother(mother: str) -> Mother:
 
 
 def _lag1_autocorrelation(da: xr.DataArray, dim: str) -> float:
-    one = da.isel({dim: slice(1, None)})
-    lag = da.isel({dim: slice(None, -1)})
-    one = one.assign_coords({dim: lag[dim]})
-    corr = xr.corr(one, lag, dim=dim)
+    current = da.isel({dim: slice(1, None)})
+    previous = da.isel({dim: slice(None, -1)})
+    current = current.assign_coords({dim: previous[dim]})
+    corr = xr.corr(current, previous, dim=dim)
     value = float(corr.mean(skipna=True))
     return value if np.isfinite(value) else 0.0
 

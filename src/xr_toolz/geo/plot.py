@@ -165,7 +165,7 @@ def plot_scalogram(
         raise ValueError(f"plot_scalogram expects a 2-D array; got dims {power.dims}.")
     if ax is None:
         _, ax = plt.subplots()
-    scale_dim = "scale" if "scale" in power.dims else power.dims[0]
+    scale_dim = _infer_scale_dim(power)
     time_dim = next(dim for dim in power.dims if dim != scale_dim)
     ycoord = "period" if "period" in power.coords else scale_dim
     values = np.asarray(power.transpose(scale_dim, time_dim).values, dtype=float)
@@ -225,7 +225,7 @@ def plot_global_wavelet_spectrum(
         spectrum = spectrum.mean(time_dim, skipna=True)
     if spectrum.ndim != 1:
         raise ValueError("plot_global_wavelet_spectrum expects one scale dimension.")
-    scale_dim = spectrum.dims[0]
+    scale_dim = _infer_scale_dim(spectrum)
     xcoord = "period" if "period" in spectrum.coords else scale_dim
     ax.plot(
         np.asarray(spectrum[xcoord].values, dtype=float), np.asarray(spectrum.values)
@@ -268,8 +268,8 @@ def plot_dominant_period_map(
     out = plot_resolved_scale_map(pmap, ax=ax, cmap=cmap, levels=levels)
     out.set_title(pmap.name or "Dominant period")
     if pmap.ndim == 2:
-        out.set_ylabel(pmap.dims[0])
-        out.set_xlabel(pmap.dims[1])
+        out.set_ylabel(str(pmap.dims[0]))
+        out.set_xlabel(str(pmap.dims[1]))
     return out
 
 
@@ -279,6 +279,11 @@ def _parse_slope(slope: str | float) -> float:
         num, den = slope.split("/", maxsplit=1)
         return float(num) / float(den)
     return float(slope)
+
+
+def _infer_scale_dim(da: xr.DataArray) -> str:
+    """Return the scale dimension, preferring the canonical ``scale`` name."""
+    return "scale" if "scale" in da.dims else str(da.dims[0])
 
 
 def _extent(da: xr.DataArray) -> tuple[float, float, float, float] | None:
