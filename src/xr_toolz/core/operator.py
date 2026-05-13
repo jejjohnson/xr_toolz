@@ -8,11 +8,54 @@ symbolic ``Node`` arguments at call time.
 
 from __future__ import annotations
 
+import inspect
 from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
     from xr_toolz.core.sequential import Sequential
+
+
+class ConfigMixin:
+    """Mixin that captures constructor arguments for ``get_config``.
+
+    Classes that need custom serialization can define their own
+    ``get_config`` method or set ``__config_mixin_auto__ = False``.
+    """
+
+    __config_mixin_auto__ = True
+    __config_exclude__: tuple[str, ...] = ()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if not getattr(cls, "__config_mixin_auto__", True):
+            return
+        if "get_config" in cls.__dict__ or "__init__" not in cls.__dict__:
+            return
+
+        init = cls.__dict__["__init__"]
+        signature = inspect.signature(init)
+
+        def wrapped_init(self: ConfigMixin, *args: Any, **kwargs: Any) -> None:
+            bound = signature.bind(self, *args, **kwargs)
+            bound.apply_defaults()
+            init(self, *args, **kwargs)
+            exclude = set(getattr(self, "__config_exclude__", ()))
+            self._config_mixin_config = {
+                name: value
+                for name, value in bound.arguments.items()
+                if name != "self" and name not in exclude
+            }
+
+        wrapped_init.__name__ = init.__name__
+        wrapped_init.__qualname__ = init.__qualname__
+        wrapped_init.__doc__ = init.__doc__
+        wrapped_init.__signature__ = signature  # type: ignore[attr-defined]
+        setattr(cls, "__init__", wrapped_init)  # noqa: B010
+
+    def get_config(self) -> dict[str, Any]:
+        """Return captured constructor arguments."""
+        return dict(getattr(self, "_config_mixin_config", {}))
 
 
 class Operator:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from xr_toolz.core import Graph, Input, Node, Operator, Sequential
+from xr_toolz.core import ConfigMixin, Graph, Input, Node, Operator, Sequential
 
 
 class AddConst(Operator):
@@ -39,6 +39,21 @@ def test_operator_get_config_and_repr():
     op = AddConst(const=2.5)
     assert op.get_config() == {"const": 2.5}
     assert repr(op) == "AddConst(const=2.5)"
+
+
+def test_config_mixin_captures_constructor_defaults():
+    class Scale(ConfigMixin, Operator):
+        def __init__(self, factor: float, *, offset: float = 0.0):
+            self.factor = factor
+            self.offset = offset
+
+        def _apply(self, x):
+            return x * self.factor + self.offset
+
+    op = Scale(2.0, offset=1.0)
+
+    assert op.get_config() == {"factor": 2.0, "offset": 1.0}
+    assert Scale(**op.get_config())(3.0) == 7.0
 
 
 def test_base_apply_raises():
