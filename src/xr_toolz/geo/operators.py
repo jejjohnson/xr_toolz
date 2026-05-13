@@ -662,7 +662,7 @@ class WaveletSignificance(Operator):
         *,
         dim_time: str = "time",
         dim_scale: str = "scale",
-        null: str = "red",
+        null: Literal["red", "white"] = "red",
         alpha: float | None = None,
         confidence: float = 0.95,
         mother: str = "morlet",
@@ -687,7 +687,7 @@ class WaveletSignificance(Operator):
             ds[self.var],
             dim_time=self.dim_time,
             dim_scale=self.dim_scale,
-            null=self.null,  # ty: ignore[invalid-argument-type]
+            null=self.null,
             alpha=self.alpha,
             confidence=self.confidence,
             mother=self.mother,

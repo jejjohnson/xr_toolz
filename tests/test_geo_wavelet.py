@@ -37,7 +37,7 @@ def _plane_wave(nx: int = 64, ny: int = 64, wavelength: float = 4.0) -> xr.DataA
 def _sine_wave(n: int = 128, period: float = 8.0) -> xr.DataArray:
     time = np.arange(n, dtype=float)
     data = np.sin(2.0 * np.pi * time / period)
-    return xr.DataArray(data, dims="time", coords={"time": time}, name="nino3")
+    return xr.DataArray(data, dims="time", coords={"time": time}, name="signal")
 
 
 def test_scale_wavenumber_round_trip() -> None:
@@ -111,7 +111,7 @@ def test_cwt1d_rejects_irregular_coordinates() -> None:
 
 
 def test_wavelet_scalogram_and_significance_operators_compose() -> None:
-    ds = _sine_wave().to_dataset()
+    ds = _sine_wave().rename("nino3").to_dataset()
     pipe = Sequential(
         [
             WaveletScalogram("nino3", dj=0.5),

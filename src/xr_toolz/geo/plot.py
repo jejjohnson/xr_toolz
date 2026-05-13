@@ -142,7 +142,21 @@ def plot_scalogram(
     log_period: bool = True,
     cmap: str = "viridis",
 ) -> Axes:
-    """Plot a time-period wavelet scalogram."""
+    """Plot a time-period wavelet scalogram.
+
+    Args:
+        power: Two-dimensional wavelet power with one scale dimension and one
+            time dimension. If present, the ``period`` coordinate is used for
+            the y-axis.
+        coi: Optional cone-of-influence period series to overlay.
+        signif_mask: Optional boolean mask to contour significant regions.
+        ax: Existing axes to draw on. A new axes is created when omitted.
+        log_period: If ``True``, draw the period axis on a logarithmic scale.
+        cmap: Matplotlib colormap name for the power heatmap.
+
+    Returns:
+        The axes object for further customization.
+    """
     import matplotlib.pyplot as plt
 
     if power.ndim != 2:
@@ -185,7 +199,18 @@ def plot_global_wavelet_spectrum(
     signif: xr.DataArray | None = None,
     ax: Axes | None = None,
 ) -> Axes:
-    """Plot time-averaged wavelet power as a function of period."""
+    """Plot global wavelet spectrum as time-averaged power vs. period.
+
+    Args:
+        power: Wavelet power with a scale dimension, optionally including a
+            time dimension to average over.
+        signif: Optional reference or significance series to draw as a dashed
+            line on the same axes.
+        ax: Existing axes to draw on. A new axes is created when omitted.
+
+    Returns:
+        The axes object for further customization.
+    """
     import matplotlib.pyplot as plt
 
     if ax is None:
@@ -222,7 +247,20 @@ def plot_dominant_period_map(
     cmap: str = "cividis",
     levels: Sequence[float] | int | None = None,
 ) -> Axes:
-    """Plot a 2-D map of dominant Fourier period."""
+    """Plot a 2-D map of dominant Fourier period.
+
+    Args:
+        pmap: Two-dimensional dominant-period field, typically produced by
+            :func:`xr_toolz.geo.dominant_period_map` after averaging rectified
+            wavelet power over time and selecting the peak period.
+        ax: Existing axes to draw on. A new axes is created when omitted.
+        cmap: Matplotlib colormap name.
+        levels: Optional contour levels. When omitted, an ``imshow`` raster is
+            drawn; otherwise filled contours are drawn.
+
+    Returns:
+        The axes object for further customization.
+    """
     return plot_resolved_scale_map(pmap, ax=ax, cmap=cmap, levels=levels)
 
 
