@@ -133,6 +133,99 @@ def plot_wavelet_anisotropy(
     return ax
 
 
+def plot_scalogram(
+    power: xr.DataArray,
+    *,
+    coi: xr.DataArray | None = None,
+    signif_mask: xr.DataArray | None = None,
+    ax: Axes | None = None,
+    log_period: bool = True,
+    cmap: str = "viridis",
+) -> Axes:
+    """Plot a time-period wavelet scalogram."""
+    import matplotlib.pyplot as plt
+
+    if power.ndim != 2:
+        raise ValueError(f"plot_scalogram expects a 2-D array; got dims {power.dims}.")
+    if ax is None:
+        _, ax = plt.subplots()
+    scale_dim = "scale" if "scale" in power.dims else power.dims[0]
+    time_dim = next(dim for dim in power.dims if dim != scale_dim)
+    ycoord = "period" if "period" in power.coords else scale_dim
+    values = np.asarray(power.transpose(scale_dim, time_dim).values, dtype=float)
+    x = np.asarray(power[time_dim].values)
+    y = np.asarray(power[ycoord].values, dtype=float)
+    mesh = ax.pcolormesh(x, y, values, shading="auto", cmap=cmap)
+    ax.figure.colorbar(mesh, ax=ax)
+    if coi is not None:
+        ax.plot(
+            np.asarray(coi[coi.dims[0]].values), np.asarray(coi.values), color="white"
+        )
+    if signif_mask is not None:
+        mask = signif_mask.transpose(scale_dim, time_dim)
+        ax.contour(
+            x,
+            y,
+            np.asarray(mask.values, dtype=float),
+            levels=[0.5],
+            colors="black",
+            linewidths=0.8,
+        )
+    if log_period:
+        ax.set_yscale("log")
+    ax.set_xlabel(time_dim)
+    ax.set_ylabel(ycoord)
+    ax.set_title(power.name or "Wavelet scalogram")
+    return ax
+
+
+def plot_global_wavelet_spectrum(
+    power: xr.DataArray,
+    *,
+    signif: xr.DataArray | None = None,
+    ax: Axes | None = None,
+) -> Axes:
+    """Plot time-averaged wavelet power as a function of period."""
+    import matplotlib.pyplot as plt
+
+    if ax is None:
+        _, ax = plt.subplots()
+    spectrum = power
+    if spectrum.ndim > 1:
+        time_dim = "time" if "time" in spectrum.dims else spectrum.dims[-1]
+        spectrum = spectrum.mean(time_dim, skipna=True)
+    if spectrum.ndim != 1:
+        raise ValueError("plot_global_wavelet_spectrum expects one scale dimension.")
+    scale_dim = spectrum.dims[0]
+    xcoord = "period" if "period" in spectrum.coords else scale_dim
+    ax.plot(
+        np.asarray(spectrum[xcoord].values, dtype=float), np.asarray(spectrum.values)
+    )
+    if signif is not None:
+        sig = signif
+        if sig.ndim > 1:
+            time_dim = "time" if "time" in sig.dims else sig.dims[-1]
+            sig = sig.mean(time_dim, skipna=True)
+        ax.plot(
+            np.asarray(sig[xcoord].values, dtype=float), np.asarray(sig.values), "--"
+        )
+    ax.set_xscale("log")
+    ax.set_xlabel(xcoord)
+    ax.set_ylabel("power")
+    return ax
+
+
+def plot_dominant_period_map(
+    pmap: xr.DataArray,
+    *,
+    ax: Axes | None = None,
+    cmap: str = "cividis",
+    levels: Sequence[float] | int | None = None,
+) -> Axes:
+    """Plot a 2-D map of dominant Fourier period."""
+    return plot_resolved_scale_map(pmap, ax=ax, cmap=cmap, levels=levels)
+
+
 def _parse_slope(slope: str | float) -> float:
     """Convert slope labels such as ``"-5/3"`` to float exponents."""
     if isinstance(slope, str) and "/" in slope:
