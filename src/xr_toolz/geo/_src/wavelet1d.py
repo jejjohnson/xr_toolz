@@ -93,9 +93,13 @@ def cwt1d(
             "dt": dt,
             "dj": dj,
             "lag1_autocorrelation": _lag1_autocorrelation(da, dim),
-            "source_variance": float(da.var(skipna=True).mean(skipna=True)),
         }
     )
+    # Per-series variance preserves outer-dim broadcasting for significance
+    # thresholds — a scalar `source_variance` would over/under-flag stacks of
+    # series with different amplitudes.
+    source_variance = da.var(dim, skipna=True)
+    wave = wave.assign_coords(source_variance=source_variance)
     power = (xr.apply_ufunc(np.abs, wave) ** 2).rename("power")
     power.attrs.update(wave.attrs)
     power_rect = (
@@ -166,12 +170,16 @@ def wavelet_significance(
         param_value = _default_param(mother_name, param)
         fourier_factor, _, _ = _wavelet_factors(mother_name, param_value)
         period = scale * fourier_factor
-    variance = float(
-        power.attrs.get(
-            "source_variance",
-            power.mean(dim_time, skipna=True).mean(skipna=True),
-        )
-    )
+    # source_variance is per-outer-index when written by cwt1d so the
+    # threshold broadcasts correctly across stacks of series. Fall back to
+    # the per-series wavelet-power mean if the coord is missing (e.g. when
+    # power was constructed by hand).
+    if "source_variance" in power.coords:
+        variance: xr.DataArray | float = power.coords["source_variance"].astype(float)
+    elif "source_variance" in power.attrs:
+        variance = float(power.attrs["source_variance"])
+    else:
+        variance = power.mean(dim_time, skipna=True).mean(dim_scale, skipna=True)
     if null_model == "white":
         background = np.ones_like(period)
     else:
@@ -179,15 +187,17 @@ def wavelet_significance(
         background = (1.0 - alpha_value**2) / (
             1.0 + alpha_value**2 - 2.0 * alpha_value * np.cos(2.0 * np.pi * dt / period)
         )
-    threshold = variance * background * _chi2_ppf(confidence, df=2.0) / 2.0
-    if power.attrs.get("bias_corrected") == "liu_2007":
-        threshold = threshold / scale
-    threshold_da = xr.DataArray(
-        threshold,
+    background_da = xr.DataArray(
+        background,
         dims=(dim_scale,),
         coords={dim_scale: power[dim_scale]},
     )
-    out = (power > threshold_da).rename("signif_mask")
+    threshold = variance * background_da * _chi2_ppf(confidence, df=2.0) / 2.0
+    if power.attrs.get("bias_corrected") == "liu_2007":
+        threshold = threshold / xr.DataArray(
+            scale, dims=(dim_scale,), coords={dim_scale: power[dim_scale]}
+        )
+    out = (power > threshold).rename("signif_mask")
     out.attrs.update(
         {
             "null": null_model,
@@ -201,23 +211,27 @@ def wavelet_significance(
 def icwt1d(
     wave: xr.DataArray,
     *,
-    scale_band: tuple[float, float] | None = None,
+    band: tuple[float, float] | None = None,
     mother: str = "morlet",
     param: float | None = None,
-    dj: float = 0.25,
+    dj: float | None = None,
     dt: float | None = None,
 ) -> xr.DataArray:
     """Reconstruct a signal from 1-D CWT coefficients.
 
     Args:
         wave: Complex coefficients from :func:`cwt1d`.
-        scale_band: Optional period band ``(min, max)`` to reconstruct.
-            If a ``period`` coordinate exists, the band is interpreted in
-            period units; otherwise it is interpreted in scale units.
+        band: Optional ``(min, max)`` band to reconstruct. Interpreted in
+            **period** units when ``wave`` carries a ``period`` coordinate
+            (the usual case after :func:`cwt1d`); otherwise interpreted in
+            **scale** units.
         mother: Mother wavelet name.
         param: Optional mother parameter. Reconstruction constants are
             available for the Torrence-Compo defaults.
-        dj: Scale spacing used by :func:`cwt1d`.
+        dj: Scale spacing used by :func:`cwt1d`. Defaults to the value
+            stored in ``wave.attrs["dj"]`` (falling back to ``0.25`` if
+            absent). Reconstruction is only correct when ``dj`` matches
+            the value used during decomposition.
         dt: Sample spacing. Defaults to the coefficient ``dt`` attribute.
 
     Returns:
@@ -229,10 +243,11 @@ def icwt1d(
     _, _, cdelta = _wavelet_factors(mother_name, param_value)
     psi0 = _psi0(mother_name, param_value)
     dt_value = float(wave.attrs.get("dt", 1.0) if dt is None else dt)
+    dj_value = float(wave.attrs.get("dj", 0.25) if dj is None else dj)
     coeffs = wave
-    if scale_band is not None:
+    if band is not None:
         band_coord = coeffs["period"] if "period" in coeffs.coords else coeffs["scale"]
-        lo, hi = sorted((float(scale_band[0]), float(scale_band[1])))
+        lo, hi = sorted((float(band[0]), float(band[1])))
         coeffs = coeffs.where((band_coord >= lo) & (band_coord <= hi), other=0.0)
     scale = xr.DataArray(
         np.asarray(coeffs["scale"].values, dtype=float),
@@ -240,7 +255,7 @@ def icwt1d(
         coords={"scale": coeffs["scale"]},
     )
     reconstructed = (coeffs.real / np.sqrt(scale)).sum("scale") * (
-        dj * np.sqrt(dt_value) / (cdelta * psi0)
+        dj_value * np.sqrt(dt_value) / (cdelta * psi0)
     )
     reconstructed.name = (
         _strip_suffix(str(wave.name) if wave.name is not None else None, "_wave")

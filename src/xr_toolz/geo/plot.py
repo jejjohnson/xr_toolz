@@ -174,9 +174,19 @@ def plot_scalogram(
     mesh = ax.pcolormesh(x, y, values, shading="auto", cmap=cmap)
     ax.figure.colorbar(mesh, ax=ax)
     if coi is not None:
-        ax.plot(
-            np.asarray(coi[coi.dims[0]].values), np.asarray(coi.values), color="white"
-        )
+        # Plot COI against the scalogram's own time axis. Taking x from
+        # coi[coi.dims[0]] silently misaligns when coi was produced on a
+        # different grid.
+        if coi.ndim != 1:
+            raise ValueError(
+                f"coi must be 1-D over the time axis; got dims {coi.dims}."
+            )
+        if coi.size != x.size:
+            raise ValueError(
+                f"coi length ({coi.size}) does not match scalogram time axis "
+                f"({x.size}); reindex coi onto power[{time_dim!r}] first."
+            )
+        ax.plot(x, np.asarray(coi.values), color="white")
     if signif_mask is not None:
         mask = signif_mask.transpose(scale_dim, time_dim)
         ax.contour(
@@ -200,17 +210,22 @@ def plot_global_wavelet_spectrum(
     *,
     signif: xr.DataArray | None = None,
     ax: Axes | None = None,
+    time_dim: str = "time",
 ) -> Axes:
     """Plot global wavelet spectrum as time-averaged power vs. period.
 
     Args:
-        power: Wavelet power with a scale dimension, optionally including a
-            time dimension to average over.
-        signif: Optional one-dimensional threshold or reference spectrum with
-            the same scale/period coordinate as ``power``. If it includes a
-            time dimension, it is time-averaged before being drawn as a dashed
-            line on the same axes.
+        power: Wavelet power with a scale dimension and exactly one
+            additional time-like dimension to average over (named
+            ``time_dim``). For pixelwise inputs with extra outer dims,
+            reduce the spatial/ensemble axes first (e.g.
+            ``power.mean(["lat", "lon"])``).
+        signif: Optional threshold or reference spectrum with the same
+            scale/period coordinate as ``power``. If it includes the
+            ``time_dim`` axis it is time-averaged before being drawn as a
+            dashed line.
         ax: Existing axes to draw on. A new axes is created when omitted.
+        time_dim: Name of the time-like dimension to reduce.
 
     Returns:
         The axes object for further customization.
@@ -219,22 +234,23 @@ def plot_global_wavelet_spectrum(
 
     if ax is None:
         _, ax = plt.subplots()
-    spectrum = power
-    if spectrum.ndim > 1:
-        time_dim = "time" if "time" in spectrum.dims else str(spectrum.dims[-1])
-        spectrum = spectrum.mean(time_dim, skipna=True)
+    scale_dim = _infer_scale_dim(power)
+    extra = tuple(d for d in power.dims if d not in {scale_dim, time_dim})
+    if extra:
+        raise ValueError(
+            f"plot_global_wavelet_spectrum expects only "
+            f"({scale_dim!r}, {time_dim!r}) (or just {scale_dim!r}); got extra "
+            f"dims {extra!r}. Reduce them first, e.g. .mean({list(extra)!r})."
+        )
+    spectrum = power.mean(time_dim, skipna=True) if time_dim in power.dims else power
     if spectrum.ndim != 1:
         raise ValueError("plot_global_wavelet_spectrum expects one scale dimension.")
-    scale_dim = _infer_scale_dim(spectrum)
     xcoord = "period" if "period" in spectrum.coords else scale_dim
     ax.plot(
         np.asarray(spectrum[xcoord].values, dtype=float), np.asarray(spectrum.values)
     )
     if signif is not None:
-        sig = signif
-        if sig.ndim > 1:
-            time_dim = "time" if "time" in sig.dims else str(sig.dims[-1])
-            sig = sig.mean(time_dim, skipna=True)
+        sig = signif.mean(time_dim, skipna=True) if time_dim in signif.dims else signif
         ax.plot(
             np.asarray(sig[xcoord].values, dtype=float), np.asarray(sig.values), "--"
         )
@@ -265,11 +281,14 @@ def plot_dominant_period_map(
     Returns:
         The axes object for further customization.
     """
+    if pmap.ndim != 2:
+        raise ValueError(
+            f"plot_dominant_period_map expects a 2-D field; got dims {pmap.dims}."
+        )
     out = plot_resolved_scale_map(pmap, ax=ax, cmap=cmap, levels=levels)
     out.set_title(str(pmap.name) if pmap.name is not None else "Dominant period")
-    if pmap.ndim == 2:
-        out.set_ylabel(str(pmap.dims[0]))
-        out.set_xlabel(str(pmap.dims[1]))
+    out.set_ylabel(str(pmap.dims[0]))
+    out.set_xlabel(str(pmap.dims[1]))
     return out
 
 

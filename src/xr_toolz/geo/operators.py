@@ -587,7 +587,13 @@ class WaveletPowerSpectrum(Operator):
 
 
 class WaveletScalogram(Operator):
-    """Compute a 1-D wavelet scalogram for one variable."""
+    """Compute a 1-D wavelet scalogram for one variable.
+
+    Adds six derived variables under a common prefix:
+    ``<prefix>_wave``, ``<prefix>_power``, ``<prefix>_power_rect``,
+    ``<prefix>_scalogram``, ``<prefix>_coi``, ``<prefix>_coi_mask``.
+    The prefix defaults to ``var`` and is overridable via ``output_prefix``.
+    """
 
     def __init__(
         self,
@@ -600,7 +606,7 @@ class WaveletScalogram(Operator):
         dj: float = 0.25,
         j_max: int | None = None,
         rectify: bool = True,
-        output_var: str | None = None,
+        output_prefix: str | None = None,
     ) -> None:
         self.var = var
         self.dim = dim
@@ -610,12 +616,12 @@ class WaveletScalogram(Operator):
         self.dj = float(dj)
         self.j_max = j_max
         self.rectify = bool(rectify)
-        self.output_var = output_var
+        self.output_prefix = output_prefix
 
     def _apply(self, ds: xr.Dataset) -> xr.Dataset:
         if self.var not in ds.data_vars:
             raise KeyError(f"Dataset missing variable {self.var!r}")
-        prefix = self.output_var or self.var
+        prefix = self.output_prefix or self.var
         out = _wavelet1d.cwt1d(
             ds[self.var],
             dim=self.dim,
@@ -649,7 +655,7 @@ class WaveletScalogram(Operator):
             "dj": self.dj,
             "j_max": self.j_max,
             "rectify": self.rectify,
-            "output_var": self.output_var,
+            "output_prefix": self.output_prefix,
         }
 
 

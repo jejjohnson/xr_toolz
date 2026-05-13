@@ -134,6 +134,27 @@ def test_cwt1d_rejects_irregular_coordinates() -> None:
         cwt1d(da)
 
 
+def test_per_series_source_variance_drives_per_index_threshold() -> None:
+    """High-variance series should clear a stricter absolute threshold than
+    a low-variance series even though both share the same null spectrum."""
+    big = _sine_wave(period=8.0) * 5.0
+    small = _sine_wave(period=8.0) * 0.1
+    da = xr.concat([big, small], dim="series").assign_coords(series=[0, 1])
+    out = cwt1d(da)
+    assert "source_variance" in out["wave"].coords
+    sig = wavelet_significance(out["power_rect"], null="white")
+    assert int(sig.sel(series=0).sum()) > 0
+    assert int(sig.sel(series=1).sum()) == int(sig.sel(series=0).sum())
+
+
+def test_icwt1d_defaults_dj_from_wave_attrs() -> None:
+    da = _sine_wave(n=128, period=8.0)
+    out = cwt1d(da, dj=0.125)
+    rec_explicit = icwt1d(out["wave"], dj=0.125)
+    rec_default = icwt1d(out["wave"])
+    np.testing.assert_allclose(rec_default, rec_explicit)
+
+
 def test_wavelet_scalogram_and_significance_operators_compose() -> None:
     ds = _sine_wave().rename("nino3").to_dataset()
     pipe = Sequential(
