@@ -39,7 +39,7 @@ def _bandwidth_rule(pts: np.ndarray, rule: BandwidthRule) -> float:
         raise ValueError(f"unknown bandwidth rule {rule!r}")
     if bandwidth <= 0 or not np.isfinite(bandwidth):
         raise ValueError(f"bandwidth rule {rule!r} produced {bandwidth!r}")
-    return float(bandwidth)
+    return bandwidth
 
 
 __all__ = ["BandwidthRule", "Metric", "_bandwidth_rule", "_build_tree", "_to_metric_xy"]

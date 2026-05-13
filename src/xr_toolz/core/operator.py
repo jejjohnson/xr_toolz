@@ -39,7 +39,19 @@ class ConfigMixin:
         def wrapped_init(self: ConfigMixin, *args: Any, **kwargs: Any) -> None:
             bound = signature.bind(self, *args, **kwargs)
             bound.apply_defaults()
-            init(self, *args, **kwargs)
+            call_args: list[Any] = [self]
+            call_kwargs: dict[str, Any] = {}
+            for name, param in tuple(signature.parameters.items())[1:]:
+                value = bound.arguments[name]
+                if param.kind is inspect.Parameter.VAR_POSITIONAL:
+                    call_args.extend(value)
+                elif param.kind is inspect.Parameter.VAR_KEYWORD:
+                    call_kwargs.update(value)
+                elif param.kind is inspect.Parameter.POSITIONAL_ONLY:
+                    call_args.append(value)
+                else:
+                    call_kwargs[name] = value
+            init(*call_args, **call_kwargs)
             exclude = set(getattr(self, "__config_exclude__", ()))
             self._config_mixin_config = {
                 name: value
@@ -51,7 +63,7 @@ class ConfigMixin:
         wrapped_init.__qualname__ = init.__qualname__
         wrapped_init.__doc__ = init.__doc__
         wrapped_init.__signature__ = signature  # type: ignore[attr-defined]
-        setattr(cls, "__init__", wrapped_init)  # noqa: B010
+        cls.__init__ = wrapped_init  # ty: ignore[invalid-assignment]
 
     def get_config(self) -> dict[str, Any]:
         """Return captured constructor arguments."""

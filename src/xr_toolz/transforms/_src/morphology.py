@@ -22,6 +22,7 @@ def _require_skimage() -> Any:
         "skimage.morphology",
         extra="image",
         feature="Mask morphology",
+        package="scikit-image",
     )
 
 

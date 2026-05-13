@@ -255,6 +255,7 @@ def _get_skimage_resize() -> Callable[..., np.ndarray]:
         "skimage.transform",
         extra="image",
         feature="refine_2d",
+        package="scikit-image",
     )
     return transform.resize
 

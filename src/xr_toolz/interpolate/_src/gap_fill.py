@@ -41,6 +41,7 @@ def _require_inpaint_biharmonic():
         "skimage.restoration",
         extra="image",
         feature="fillnan_biharmonic",
+        package="scikit-image",
     )
     return restoration.inpaint_biharmonic
 

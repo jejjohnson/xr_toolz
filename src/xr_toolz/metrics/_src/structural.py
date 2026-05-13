@@ -29,7 +29,12 @@ from xr_toolz.utils._src.optional_imports import _require_optional
 
 
 def _require_structural_similarity():
-    metrics_mod = _require_optional("skimage.metrics", extra="image", feature="ssim")
+    metrics_mod = _require_optional(
+        "skimage.metrics",
+        extra="image",
+        feature="ssim",
+        package="scikit-image",
+    )
     return metrics_mod.structural_similarity
 
 

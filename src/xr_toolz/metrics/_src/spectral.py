@@ -461,6 +461,7 @@ def find_intercept_2D(
         "skimage.measure",
         extra="image",
         feature="find_intercept_2D",
+        package="scikit-image",
     )
     find_contours = measure.find_contours
 
