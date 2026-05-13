@@ -1,4 +1,4 @@
-"""Tier B — value-preserving smoothers on xarray Datasets (D12, F3.3).
+"""Value-preserving smoothers on xarray Datasets (D12, F3.3).
 
 Functions take an :class:`xr.Dataset`, a dimension name, and smoother
 parameters; they return a Dataset with the same shape and coords, every
@@ -9,7 +9,8 @@ Per D12 the smoothers are deterministic and parameter-free —
 ``KalmanSmoother`` is out of scope here and lives under future
 ``assimilate.smooth``.
 
-Tier A array kernels live at :mod:`xr_toolz.interpolate._src.array_smooth`.
+The numpy/scipy kernels live in
+:mod:`xr_toolz.interpolate._src._smooth_kernels`.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from typing import Any
 import numpy as np
 import xarray as xr
 
-from xr_toolz.interpolate._src import array_smooth as _array
+from xr_toolz.interpolate._src import _smooth_kernels as _kernels
 
 
 def _apply_along_dim(
@@ -28,7 +29,7 @@ def _apply_along_dim(
     dim: str,
     fn: Callable[..., Any],
 ) -> xr.Dataset:
-    """Apply a Tier A kernel to every numeric data variable that carries ``dim``."""
+    """Apply a numpy kernel to every numeric data variable that carries ``dim``."""
     if dim not in ds.dims:
         raise ValueError(f"dim {dim!r} not in Dataset dims {tuple(ds.dims)}")
 
@@ -57,14 +58,25 @@ def moving_average(
     center: bool = True,
     min_periods: int | None = None,
 ) -> xr.Dataset:
-    """Sliding-window mean along ``dim``.
+    """Sliding-window mean along ``dim``. NaN-skipping.
 
-    See :func:`xr_toolz.interpolate.array.moving_average` for the Tier A
-    kernel and parameter semantics.
+    Args:
+        ds: Input Dataset. Every numeric data variable carrying ``dim`` is
+            smoothed; other variables pass through unchanged.
+        dim: Dimension to smooth along.
+        window: Window length in samples (positive integer).
+        center: If True (the default), the window is centered on each
+            output sample; otherwise it is trailing.
+        min_periods: Minimum number of non-NaN samples required inside
+            the window for the output to be non-NaN. Defaults to
+            ``window`` (i.e. partial-window edges are NaN).
+
+    Returns:
+        Dataset with the same dims, coords, and attrs as ``ds``.
     """
 
     def _fn(arr: np.ndarray, *, axis: int) -> np.ndarray:
-        return _array.moving_average(
+        return _kernels.moving_average(
             arr,
             axis=axis,
             window=window,
@@ -85,7 +97,7 @@ def gaussian_smooth(
     """Gaussian smoothing along ``dim`` with standard deviation ``sigma``."""
 
     def _fn(arr: np.ndarray, *, axis: int) -> np.ndarray:
-        return _array.gaussian_smooth(arr, axis=axis, sigma=sigma, truncate=truncate)
+        return _kernels.gaussian_smooth(arr, axis=axis, sigma=sigma, truncate=truncate)
 
     return _apply_along_dim(ds, dim, _fn)
 
@@ -145,7 +157,7 @@ def _gaussian_smooth_masked_dataarray(
         # `vectorize=True` ensures apply_ufunc only ever hands us a core-shaped
         # block, so we don't need a manual reshape / stack loop. That also
         # avoids the empty-leading-dim crash that the manual np.stack hit.
-        return _array.gaussian_smooth_nd(
+        return _kernels.gaussian_smooth_nd(
             arr,
             sigma=sigmas,
             truncate=truncate,
@@ -230,14 +242,29 @@ def lowpass_filter(
 ) -> xr.Dataset:
     """Zero-phase Butterworth filter along ``dim``.
 
-    ``cutoff`` is the normalized critical frequency (fraction of the
-    Nyquist rate). For ``btype`` in ``{"bandpass", "bandstop"}`` pass a
-    length-2 ``(low, high)`` sequence. See
-    :func:`xr_toolz.interpolate.array.lowpass_filter`.
+    Applied with :func:`scipy.signal.sosfiltfilt` for zero phase and
+    SOS-form numerical stability. Complex inputs are filtered
+    component-wise; variables that don't carry ``dim`` (or are
+    non-numeric) pass through unchanged.
+
+    Args:
+        ds: Input Dataset.
+        dim: Dimension to filter along.
+        cutoff: Normalized critical frequency (fraction of the Nyquist
+            rate). For ``btype`` in ``{"low", "high", "lowpass",
+            "highpass"}`` this is a scalar in ``(0, 1)``. For ``btype``
+            in ``{"bandpass", "bandstop"}`` it is a length-2
+            ``(low, high)`` sequence with both entries in ``(0, 1)``.
+        order: Filter order (positive integer).
+        btype: One of ``{"low", "high", "lowpass", "highpass",
+            "bandpass", "bandstop"}``.
+
+    Returns:
+        Filtered Dataset with the same dims, coords, and attrs as ``ds``.
     """
 
     def _fn(arr: np.ndarray, *, axis: int) -> np.ndarray:
-        return _array.lowpass_filter(
+        return _kernels.lowpass_filter(
             arr, axis=axis, cutoff=cutoff, order=order, btype=btype
         )
 
@@ -256,12 +283,32 @@ def fir_filter(
 ) -> xr.Dataset:
     """Zero-phase FIR filter along ``dim``.
 
-    See :func:`xr_toolz.interpolate.array.fir_filter` for cutoff, window,
-    and tap-count semantics.
+    Applied with :func:`scipy.signal.filtfilt` for zero phase. Complex
+    inputs are filtered component-wise; variables that don't carry
+    ``dim`` (or are non-numeric) pass through unchanged.
+
+    Args:
+        ds: Input Dataset.
+        dim: Dimension to filter along.
+        cutoff: Normalized cutoff frequency (fraction of the Nyquist
+            rate). For ``btype`` in ``{"bandpass", "bandstop"}`` pass a
+            length-2 ``(low, high)`` sequence.
+        method: Window family — ``"lanczos"`` or ``"kaiser"``.
+        btype: One of ``{"low", "high", "lowpass", "highpass",
+            "bandpass", "bandstop"}``.
+        num_taps: Odd FIR tap count. Defaults to a conservative value
+            for Lanczos; for Kaiser it is estimated from
+            ``attenuation_db`` (which is then required).
+        attenuation_db: Kaiser stop-band attenuation target in
+            decibels. Required when ``method="kaiser"`` and
+            ``num_taps`` is not supplied.
+
+    Returns:
+        Filtered Dataset with the same dims, coords, and attrs as ``ds``.
     """
 
     def _fn(arr: np.ndarray, *, axis: int) -> np.ndarray:
-        return _array.fir_filter(
+        return _kernels.fir_filter(
             arr,
             axis=axis,
             cutoff=cutoff,
