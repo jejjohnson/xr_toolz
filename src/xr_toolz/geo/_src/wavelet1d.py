@@ -20,7 +20,7 @@ def cwt1d(
     da: xr.DataArray,
     *,
     dim: str = "time",
-    mother: Mother = "morlet",
+    mother: str = "morlet",
     param: float | None = None,
     s0: float | None = None,
     dj: float = 0.25,

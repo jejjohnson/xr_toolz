@@ -166,7 +166,7 @@ def plot_scalogram(
     if ax is None:
         _, ax = plt.subplots()
     scale_dim = _infer_scale_dim(power)
-    time_dim = next(dim for dim in power.dims if dim != scale_dim)
+    time_dim = str(next(dim for dim in power.dims if dim != scale_dim))
     ycoord = "period" if "period" in power.coords else scale_dim
     values = np.asarray(power.transpose(scale_dim, time_dim).values, dtype=float)
     x = np.asarray(power[time_dim].values)
@@ -191,7 +191,7 @@ def plot_scalogram(
         ax.set_yscale("log")
     ax.set_xlabel(time_dim)
     ax.set_ylabel(ycoord)
-    ax.set_title(power.name or "Wavelet scalogram")
+    ax.set_title(str(power.name) if power.name is not None else "Wavelet scalogram")
     return ax
 
 
@@ -221,7 +221,7 @@ def plot_global_wavelet_spectrum(
         _, ax = plt.subplots()
     spectrum = power
     if spectrum.ndim > 1:
-        time_dim = "time" if "time" in spectrum.dims else spectrum.dims[-1]
+        time_dim = "time" if "time" in spectrum.dims else str(spectrum.dims[-1])
         spectrum = spectrum.mean(time_dim, skipna=True)
     if spectrum.ndim != 1:
         raise ValueError("plot_global_wavelet_spectrum expects one scale dimension.")
@@ -233,7 +233,7 @@ def plot_global_wavelet_spectrum(
     if signif is not None:
         sig = signif
         if sig.ndim > 1:
-            time_dim = "time" if "time" in sig.dims else sig.dims[-1]
+            time_dim = "time" if "time" in sig.dims else str(sig.dims[-1])
             sig = sig.mean(time_dim, skipna=True)
         ax.plot(
             np.asarray(sig[xcoord].values, dtype=float), np.asarray(sig.values), "--"
@@ -266,7 +266,7 @@ def plot_dominant_period_map(
         The axes object for further customization.
     """
     out = plot_resolved_scale_map(pmap, ax=ax, cmap=cmap, levels=levels)
-    out.set_title(pmap.name or "Dominant period")
+    out.set_title(str(pmap.name) if pmap.name is not None else "Dominant period")
     if pmap.ndim == 2:
         out.set_ylabel(str(pmap.dims[0]))
         out.set_xlabel(str(pmap.dims[1]))
